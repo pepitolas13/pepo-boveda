@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Pepo Bóveda</string>
+    <string name="proveedor_subtitulo">Passkeys y contraseñas guardadas en local, sin internet</string>
+    <string name="autofill_sugerencia">Pepo Bóveda</string>
+</resources>

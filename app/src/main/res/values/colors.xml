@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="obsidiana">#FF0E0F13</color>
+    <color name="superficie">#FF161922</color>
+    <color name="borde">#FF232838</color>
+    <color name="ambar">#FFFFB74D</color>
+    <color name="ambar_fuerte">#FFFF8A3D</color>
+    <color name="menta">#FF57E6B4</color>
+    <color name="peligro">#FFFF5D5D</color>
+    <color name="transparente">#00000000</color>
+</resources>

@@ -1,0 +1,27 @@
+# --- NUNCA subir: firma de la app ---
+# Si esto se filtra, cualquiera puede publicar APKs que Android considere tuyos.
+keystore.properties
+*.jks
+*.jks.*
+*.keystore
+*.keystore.*
+*.p12
+*.pepk
+
+# --- Rutas y ajustes de esta máquina ---
+local.properties
+
+# --- Resultado de compilar (se regenera solo, y pesa) ---
+build/
+app/build/
+.gradle/
+.kotlin/
+*.apk
+*.aab
+*.aar
+captures/
+
+# --- Editores ---
+.idea/
+*.iml
+.DS_Store

@@ -1,0 +1,2 @@
+-keep class com.lambdapioneer.argon2kt.** { *; }
+-keepclassmembers class kotlinx.serialization.json.** { *; }
