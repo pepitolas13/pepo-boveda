@@ -72,11 +72,21 @@ class PasskeyCreateActivity : FragmentActivity() {
             val par = WebAuthn.generarPar()
             val credId = WebAuthn.nuevoCredId()
             val info = peticion?.callingAppInfo
-            val origen = if (info != null) Origen.deApp(info.packageName, info.signingInfo) else Origen.deWeb(datos.rpId)
+            // Si quien pide es un navegador, el origen que hay que firmar es el de la
+            // web, no el de la app. Viene en callingAppInfo.origin y solo lo rellena
+            // el sistema para clientes privilegiados.
+            val origen = if (datos.rpId.contains('.')) {
+                Origen.deWeb(datos.rpId)
+            } else if (info != null) {
+                Origen.deApp(info.packageName, info.signingInfo)
+            } else {
+                Origen.deWeb(datos.rpId)
+            }
+            android.util.Log.e("PepoPasskey", "CREAR rpId=${datos.rpId} origen=$origen")
             val clientData = WebAuthn.clientDataJson("webauthn.create", datos.reto, origen)
             val authData = WebAuthn.authenticatorDataRegistro(datos.rpId, credId, par.x, par.y)
             val attestation = WebAuthn.attestationObject(authData)
-            val json = WebAuthn.respuestaRegistro(credId, clientData, attestation)
+            val json = WebAuthn.respuestaRegistro(credId, clientData, attestation, authData, par.x, par.y)
 
             val passkey = DatosPasskey(
                 rpId = datos.rpId,
@@ -105,11 +115,12 @@ class PasskeyCreateActivity : FragmentActivity() {
             setResult(Activity.RESULT_OK, respuesta)
             finish()
         } catch (e: Exception) {
-            fallar("No se pudo crear la passkey")
+            fallar("No se pudo crear la passkey: ${e.javaClass.simpleName}: ${e.message}")
         }
     }
 
     private fun fallar(mensaje: String) {
+        android.util.Log.e("PepoPasskey", "FALLO CREAR: $mensaje")
         val respuesta = Intent()
         PendingIntentHandler.setCreateCredentialException(
             respuesta,

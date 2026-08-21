@@ -2,7 +2,7 @@
 <credential-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:settingsSubtitle="@string/proveedor_subtitulo">
     <capabilities>
-        <capability name="android.credentials.TYPE_PUBLIC_KEY_CREDENTIAL" />
-        <capability name="android.credentials.TYPE_PASSWORD_CREDENTIAL" />
+        <capability name="androidx.credentials.TYPE_PUBLIC_KEY_CREDENTIAL" />
+        <capability name="androidx.credentials.TYPE_PASSWORD_CREDENTIAL" />
     </capabilities>
 </credential-provider>

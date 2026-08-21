@@ -111,11 +111,42 @@ object WebAuthn {
         return Cbor.codificar(mapa)
     }
 
-    fun respuestaRegistro(credId: ByteArray, clientData: ByteArray, attestation: ByteArray): String {
+    /**
+     * Clave publica en formato SPKI (DER) para P-256. La cabecera es fija: solo
+     * cambian los 32 bytes de X y los 32 de Y.
+     */
+    private fun spkiP256(x: ByteArray, y: ByteArray): ByteArray {
+        val cabecera = intArrayOf(
+            0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE,
+            0x3D, 0x02, 0x01, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D,
+            0x03, 0x01, 0x07, 0x03, 0x42, 0x00, 0x04
+        ).map { it.toByte() }.toByteArray()
+        return cabecera + rellenar32(x) + rellenar32(y)
+    }
+
+    private fun rellenar32(valor: ByteArray): ByteArray = when {
+        valor.size == 32 -> valor
+        valor.size > 32 -> valor.copyOfRange(valor.size - 32, valor.size)
+        else -> ByteArray(32 - valor.size) + valor
+    }
+
+    fun respuestaRegistro(
+        credId: ByteArray,
+        clientData: ByteArray,
+        attestation: ByteArray,
+        authData: ByteArray,
+        x: ByteArray,
+        y: ByteArray
+    ): String {
         val id = aB64Url(credId)
         val respuesta = JSONObject()
         respuesta.put("clientDataJSON", aB64Url(clientData))
         respuesta.put("attestationObject", aB64Url(attestation))
+        // Chrome exige estos tres campos o descarta la respuesta entera.
+        respuesta.put("authenticatorData", aB64Url(authData))
+        respuesta.put("publicKeyAlgorithm", -7)
+        respuesta.put("publicKey", aB64Url(spkiP256(x, y)))
+        respuesta.put("transports", org.json.JSONArray(listOf("internal", "hybrid")))
         val raiz = JSONObject()
         raiz.put("id", id)
         raiz.put("rawId", id)

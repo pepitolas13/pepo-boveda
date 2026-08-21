@@ -64,6 +64,7 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
     var denegado by remember { mutableStateOf(false) }
     var manual by remember { mutableStateOf("") }
     var fallo by remember { mutableStateOf(false) }
+    var qrPasskey by remember { mutableStateOf(false) }
 
     val pedirPermiso = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
         permiso = concedido
@@ -92,7 +93,10 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
                     .clip(RoundedCornerShape(22.dp))
             ) {
                 VistaCamara { texto ->
-                    if (vm.altaTotp(texto, entradaDestino)) {
+                    if (esQrDePasskey(texto)) {
+                        qrPasskey = true
+                    } else if (vm.altaTotp(texto, entradaDestino)) {
+                        qrPasskey = false
                         vm.avisar("Doble factor añadido")
                     }
                 }
@@ -121,6 +125,24 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
             }
         }
 
+        if (qrPasskey) {
+            Spacer(Modifier.height(18.dp))
+            TarjetaPepo {
+                Text("Ese QR es de una llave de acceso, no de un 2FA", color = Peligro, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Ese código lo enseña el navegador de tu ordenador para pasar la llave al móvil, " +
+                        "y para eso hace falta internet y Bluetooth. Yo no tengo permiso de red, así que " +
+                        "no puedo leerlo, y prefiero decírtelo a fingir que funciona.\n\n" +
+                        "Las llaves de acceso no se escanean aquí. Abre la web en el navegador del propio " +
+                        "móvil y, cuando te pregunte dónde guardar la llave, elige Pepo Bóveda. Si no aparezco " +
+                        "en esa lista, actívame en Ajustes.",
+                    color = TextoSecundario,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+
         Spacer(Modifier.height(18.dp))
         Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))) {
             Column(modifier = Modifier.fillMaxWidth().padding(0.dp)) {
@@ -142,7 +164,10 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
                 }
                 Spacer(Modifier.height(12.dp))
                 BotonAmbar("Añadir este código", activo = manual.isNotBlank()) {
-                    if (vm.altaTotp(manual.trim(), entradaDestino)) {
+                    val texto = manual.trim()
+                    if (esQrDePasskey(texto)) {
+                        qrPasskey = true
+                    } else if (vm.altaTotp(texto, entradaDestino)) {
                         vm.avisar("Doble factor añadido")
                     } else {
                         fallo = true
@@ -155,6 +180,18 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
         BotonBorde("Cancelar") { if (!vm.retroceder()) vm.volverALista() }
         Spacer(Modifier.height(40.dp))
     }
+}
+
+/**
+ * Los QR de llave de acceso entre dispositivos (CTAP 2.2 hybrid) empiezan por "FIDO:/".
+ * No los podemos atender: ese transporte necesita un tunel por internet y Bluetooth,
+ * y esta app no pide permiso de red. Los detectamos para explicarlo en vez de dar un
+ * error generico que no le dice nada a nadie.
+ */
+private fun esQrDePasskey(texto: String): Boolean {
+    val limpio = texto.trim()
+    return limpio.startsWith("FIDO:/", ignoreCase = true) ||
+        limpio.startsWith("fido:", ignoreCase = true)
 }
 
 @Composable
