@@ -64,6 +64,9 @@ fun HojaPasskey(
             Biometria.disponible(actividad)
     }
 
+    var yaConfirmado by remember { mutableStateOf(false) }
+    val huellaDisponible = remember { Biometria.disponible(actividad) }
+
     val pedirBiometria: () -> Unit = {
         val cipher = try {
             repositorio.biometria.cipherParaDesenvolver()
@@ -82,6 +85,8 @@ fun HojaPasskey(
                         val clave = repositorio.biometria.leerEnvuelta(cifrador)
                         repositorio.desbloquearConClaveMaestra(clave)
                         haptica.exito()
+                        // Esa huella ya vale como confirmacion: no te la pido dos veces.
+                        yaConfirmado = true
                         abierta = true
                     } catch (e: Exception) {
                         error = "No se pudo abrir la bóveda con biometría"
@@ -99,6 +104,38 @@ fun HojaPasskey(
         if (!abierta && biometriaLista && !biometriaPedida) {
             biometriaPedida = true
             pedirBiometria()
+        }
+    }
+
+    // Con la bóveda ya abierta, la huella es la confirmación: pones el dedo y
+    // firma. No hace falta pasear por dentro de Pepo Bóveda para nada.
+    var firmaLanzada by remember { mutableStateOf(false) }
+    LaunchedEffect(abierta, yaConfirmado) {
+        if (!abierta || firmaLanzada) return@LaunchedEffect
+        when {
+            yaConfirmado -> {
+                firmaLanzada = true
+                trabajando = true
+                alConfirmar()
+            }
+            huellaDisponible -> {
+                firmaLanzada = true
+                Biometria.confirmar(
+                    actividad = actividad,
+                    titulo = titulo,
+                    subtitulo = sitio,
+                    alExito = {
+                        haptica.exito()
+                        trabajando = true
+                        alConfirmar()
+                    },
+                    alFallar = {
+                        // Si cancelas, te queda el botón de siempre.
+                        firmaLanzada = false
+                        error = it
+                    }
+                )
+            }
         }
     }
 

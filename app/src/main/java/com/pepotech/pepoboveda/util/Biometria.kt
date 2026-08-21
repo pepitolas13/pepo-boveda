@@ -46,4 +46,39 @@ object Biometria {
             .build()
         prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
     }
+
+    /**
+     * Confirmacion de presencia, sin clave de por medio. Para cuando la boveda ya
+     * esta abierta y lo unico que hace falta es que confirmes que eres tu.
+     */
+    fun confirmar(
+        actividad: FragmentActivity,
+        titulo: String,
+        subtitulo: String,
+        alExito: () -> Unit,
+        alFallar: (String) -> Unit
+    ) {
+        val ejecutor = ContextCompat.getMainExecutor(actividad)
+        val prompt = BiometricPrompt(
+            actividad,
+            ejecutor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(resultado: BiometricPrompt.AuthenticationResult) {
+                    alExito()
+                }
+
+                override fun onAuthenticationError(codigo: Int, mensaje: CharSequence) {
+                    alFallar(mensaje.toString())
+                }
+            }
+        )
+        val info = BiometricPrompt.PromptInfo.Builder()
+            .setTitle(titulo)
+            .setSubtitle(subtitulo)
+            .setNegativeButtonText("Cancelar")
+            .setAllowedAuthenticators(AUTENTICADORES)
+            .setConfirmationRequired(false)
+            .build()
+        prompt.authenticate(info)
+    }
 }
