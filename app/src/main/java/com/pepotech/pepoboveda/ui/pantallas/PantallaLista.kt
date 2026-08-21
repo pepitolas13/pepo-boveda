@@ -36,8 +36,11 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +53,9 @@ import com.pepotech.pepoboveda.data.EstadoBoveda
 import com.pepotech.pepoboveda.data.TipoEntrada
 import com.pepotech.pepoboveda.ui.Pantalla
 import com.pepotech.pepoboveda.ui.VaultViewModel
+import com.pepotech.pepoboveda.crypto.Base32
+import com.pepotech.pepoboveda.crypto.Totp
+import com.pepotech.pepoboveda.ui.componentes.AnilloTotp
 import com.pepotech.pepoboveda.ui.componentes.CampoPepo
 import com.pepotech.pepoboveda.ui.componentes.IlustracionVacio
 import com.pepotech.pepoboveda.ui.componentes.Monograma
@@ -156,7 +162,35 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, bottom = 110.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(visibles, key = { it.id }) { entrada ->
+                    // Orden fijo: primero lo que caduca en 30 segundos, luego claves,
+                    // luego passkeys y notas.
+                    val conDobleFactor = visibles.filter { !it.secretoTotp.isNullOrBlank() }
+                    val claves = visibles.filter {
+                        it.secretoTotp.isNullOrBlank() && it.tipo == TipoEntrada.LOGIN
+                    }
+                    val passkeys = visibles.filter {
+                        it.secretoTotp.isNullOrBlank() && it.tipo == TipoEntrada.PASSKEY
+                    }
+                    val notas = visibles.filter {
+                        it.secretoTotp.isNullOrBlank() && it.tipo == TipoEntrada.NOTA
+                    }
+
+                    listOf(
+                        "Doble factor" to conDobleFactor,
+                        "Contraseñas" to claves,
+                        "Llaves de acceso" to passkeys,
+                        "Notas" to notas
+                    ).forEach { (titulo, grupo) ->
+                        if (grupo.isEmpty()) return@forEach
+                        item(key = "cabecera-$titulo") {
+                            Text(
+                                titulo.uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Ambar,
+                                modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+                            )
+                        }
+                        items(grupo, key = { it.id }) { entrada ->
                         FilaEntrada(
                             entrada = entrada,
                             alAbrir = { vm.ir(Pantalla.Detalle(entrada.id)) },
@@ -168,8 +202,13 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                                 haptica.exito()
                                 vm.copiar("ContraseÃ±a", entrada.contrasena, sensible = true)
                             },
-                            alFavorito = { haptica.tic(); vm.alternarFavorito(entrada.id) }
+                            alFavorito = { haptica.tic(); vm.alternarFavorito(entrada.id) },
+                            alCopiarCodigo = { codigo ->
+                                haptica.exito()
+                                vm.copiar("Código", codigo, sensible = true)
+                            }
                         )
+                        }
                     }
                 }
             }
@@ -214,7 +253,8 @@ private fun FilaEntrada(
     alAbrir: () -> Unit,
     alCopiarUsuario: () -> Unit,
     alCopiarContrasena: () -> Unit,
-    alFavorito: () -> Unit
+    alFavorito: () -> Unit,
+    alCopiarCodigo: (String) -> Unit = {}
 ) {
     val estadoSwipe = rememberSwipeToDismissBoxState(
         confirmValueChange = { valor ->
@@ -275,6 +315,41 @@ private fun FilaEntrada(
                     color = TextoSecundario,
                     maxLines = 1
                 )
+            }
+            val secreto = entrada.secretoTotp
+            if (!secreto.isNullOrBlank()) {
+                var ahora by remember { mutableStateOf(System.currentTimeMillis() / 1000) }
+                LaunchedEffect(secreto) {
+                    while (true) {
+                        ahora = System.currentTimeMillis() / 1000
+                        kotlinx.coroutines.delay(1000)
+                    }
+                }
+                val periodo = entrada.totpPeriodo.toLong()
+                val codigo = remember(ahora / periodo, secreto) {
+                    try {
+                        Totp.codigo(
+                            secreto = Base32.decodificar(secreto),
+                            segundosUnix = ahora,
+                            digitos = entrada.totpDigitos,
+                            periodo = periodo
+                        )
+                    } catch (e: Exception) {
+                        "------"
+                    }
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { alCopiarCodigo(codigo) }.padding(horizontal = 4.dp)
+                ) {
+                    Text(codigo, style = MaterialTheme.typography.titleMedium, color = Ambar)
+                    Spacer(Modifier.width(6.dp))
+                    AnilloTotp(
+                        codigo = "",
+                        segundosRestantes = Totp.segundosRestantes(ahora, periodo),
+                        tamano = 26
+                    )
+                }
             }
             IconButton(onClick = alFavorito, modifier = Modifier.size(40.dp)) {
                 Icon(
