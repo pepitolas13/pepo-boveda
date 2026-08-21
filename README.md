@@ -58,10 +58,13 @@ keytool -genkeypair -v -keystore pepo-boveda.jks -alias pepoboveda \
 
 Esto es importante y no lo voy a esconder:
 
-- **Nada se ha ejecutado en un dispositivo físico ni en un emulador.** El proyecto
-  compila y los tests unitarios pasan (criptografía, Base32, TOTP, generador, dominios,
-  CBOR), pero biometría, autofill, passkeys, cámara y exportar/importar **no se han
-  visto funcionar**. Los tests instrumentados de Argon2 compilan y nunca se han corrido.
+- **Probada a mano en dos dispositivos físicos.** Ahí se ha visto funcionar la bóveda,
+  la biometría, el autofill, el registro de passkeys en el navegador, la cámara del
+  escáner y el autenticador TOTP. Lo que no está es una batería de pruebas
+  automatizadas en dispositivo: los tests unitarios pasan (criptografía, Base32, TOTP,
+  generador, dominios, CBOR) y los instrumentados de Argon2 compilan pero no se han
+  corrido. Dos móviles no son un banco de pruebas: no esperes que esté probada en
+  todos los fabricantes ni en todas las versiones de Android.
 - Una auditoría adversarial encontró y corrigió tres fallos reales: suplantación de app
   en el autofill (se derivaba un dominio desde el nombre del paquete), el bloqueo por
   inactividad no actuaba en primer plano, y no había ningún freno a los intentos de
