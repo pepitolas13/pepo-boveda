@@ -170,16 +170,6 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
-            FilaAjuste(
-                titulo = "Modo grabación",
-                descripcion = "Desactiva FLAG_SECURE para poder grabar la pantalla. Solo cuando estés grabando el vídeo.",
-                activo = ajustes.modoGrabacion,
-                alCambiar = {
-                    haptica.toque()
-                    vm.ajustarModoGrabacion(it)
-                }
-            )
         }
 
         Spacer(Modifier.height(16.dp))

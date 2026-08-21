@@ -29,6 +29,7 @@ import com.pepotech.pepoboveda.ui.componentes.AnilloTotp
 import com.pepotech.pepoboveda.ui.componentes.BotonAmbar
 import com.pepotech.pepoboveda.ui.componentes.BotonBorde
 import com.pepotech.pepoboveda.ui.componentes.TarjetaPepo
+import com.pepotech.pepoboveda.ui.theme.Ambar
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
 import kotlinx.coroutines.delay
@@ -93,18 +94,25 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
                 }
                 TarjetaPepo(alPulsar = { vm.copiar("Código 2FA", codigo, true) }) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // El anillo solo lleva la cuenta atras. Los 6 digitos van fuera,
+                        // grandes: dentro del circulo no caben legibles.
                         AnilloTotp(
-                            codigo = codigo,
+                            codigo = "",
                             segundosRestantes = Totp.segundosRestantes(ahora, periodo),
-                            tamano = 80,
+                            tamano = 56,
                             periodo = periodo
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 entrada.totpEmisor.ifBlank { entrada.titulo },
-                                color = TextoPrincipal,
-                                style = MaterialTheme.typography.titleMedium
+                                color = TextoSecundario,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                if (codigo.length == 6) "${codigo.take(3)} ${codigo.drop(3)}" else codigo,
+                                color = Ambar,
+                                style = MaterialTheme.typography.headlineMedium
                             )
                             if (entrada.usuario.isNotBlank()) {
                                 Text(entrada.usuario, color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
