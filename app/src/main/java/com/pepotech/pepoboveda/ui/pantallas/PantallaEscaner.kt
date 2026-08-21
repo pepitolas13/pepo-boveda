@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,7 +54,7 @@ import com.pepotech.pepoboveda.ui.theme.TextoSecundario
 import java.util.concurrent.Executors
 
 @Composable
-fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
+fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?, soloManual: Boolean = false) {
     val contexto = LocalContext.current
     var permiso by remember {
         mutableStateOf(
@@ -71,6 +72,16 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
         denegado = !concedido
     }
 
+    // Si has venido a escanear, la cámara se abre sola: pedir permiso es el
+    // único paso que Android no me deja saltarme.
+    var permisoPedido by remember { mutableStateOf(false) }
+    LaunchedEffect(soloManual) {
+        if (!soloManual && !permiso && !permisoPedido) {
+            permisoPedido = true
+            pedirPermiso.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -85,7 +96,9 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
         )
         Spacer(Modifier.height(16.dp))
 
-        if (permiso) {
+        if (soloManual) {
+            // Nada de cámara: has venido a teclear la clave.
+        } else if (permiso) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -146,7 +159,20 @@ fun PantallaEscaner(vm: VaultViewModel, entradaDestino: String?) {
         Spacer(Modifier.height(18.dp))
         Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))) {
             Column(modifier = Modifier.fillMaxWidth().padding(0.dp)) {
-                Text("O escríbelo a mano", color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    if (soloManual) "Pega o escribe la clave" else "O escríbelo a mano",
+                    color = TextoPrincipal,
+                    style = MaterialTheme.typography.titleMedium
+                )
+                if (soloManual) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Es la clave que la web te da junto al QR, la que suele venir " +
+                            "en bloques de cuatro letras. Sirve igual que escanearlo.",
+                        color = TextoSecundario,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
                 CampoPepo(
                     valor = manual,

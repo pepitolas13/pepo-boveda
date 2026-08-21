@@ -172,7 +172,7 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
                     Pantalla.Generador -> PantallaGenerador(vm)
                     Pantalla.Passkeys -> PantallaPasskeys(vm)
                     Pantalla.Autenticador -> PantallaAutenticador(vm, estado)
-                    is Pantalla.Escaner -> PantallaEscaner(vm, destino.entradaDestino)
+                    is Pantalla.Escaner -> PantallaEscaner(vm, destino.entradaDestino, destino.soloManual)
                     Pantalla.Ajustes -> PantallaAjustes(vm, actividad)
                     Pantalla.AcercaDe -> PantallaAcercaDe(vm)
                 }

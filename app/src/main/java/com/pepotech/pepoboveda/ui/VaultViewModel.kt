@@ -29,7 +29,11 @@ sealed interface Pantalla {
     object Passkeys : Pantalla
     object Autenticador : Pantalla
     /** Si [entradaDestino] es null, el QR crea una entrada nueva de 2FA. */
-    data class Escaner(val entradaDestino: String? = null) : Pantalla
+    data class Escaner(
+        val entradaDestino: String? = null,
+        /** true = entrar directo a escribir la clave a mano, sin cámara. */
+        val soloManual: Boolean = false
+    ) : Pantalla
     object Ajustes : Pantalla
     object AcercaDe : Pantalla
 }

@@ -62,7 +62,7 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
 
         BotonAmbar("Escanear QR con la cámara") { vm.ir(Pantalla.Escaner()) }
         Spacer(Modifier.height(10.dp))
-        BotonBorde("Escribir el código a mano") { vm.ir(Pantalla.Editar(null)) }
+        BotonBorde("Escribir el código a mano") { vm.ir(Pantalla.Escaner(soloManual = true)) }
         Spacer(Modifier.height(18.dp))
 
         if (conTotp.isEmpty()) {
