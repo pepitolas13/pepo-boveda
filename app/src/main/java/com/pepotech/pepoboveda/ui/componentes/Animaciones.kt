@@ -35,12 +35,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.pepotech.pepoboveda.crypto.Totp
 import com.pepotech.pepoboveda.ui.theme.Ambar
 import com.pepotech.pepoboveda.ui.theme.AmbarFuerte
@@ -113,8 +116,25 @@ fun ContrasenaSlotMachine(
 }
 
 @Composable
-fun AnilloTotp(codigo: String, segundosRestantes: Long, tamano: Int = 92) {
-    val fraccion = (segundosRestantes.toFloat() / Totp.PERIODO_SEGUNDOS).coerceIn(0f, 1f)
+fun AnilloTotp(
+    codigo: String,
+    segundosRestantes: Long,
+    tamano: Int = 92,
+    periodo: Long = Totp.PERIODO_SEGUNDOS
+) {
+    val objetivo = (segundosRestantes.toFloat() / periodo).coerceIn(0f, 1f)
+    // El vaciado va continuo, no a saltos de un segundo. Cuando el ciclo se reinicia
+    // (la fraccion sube) el anillo salta al maximo de golpe: rellenarse despacio
+    // se veria al reves de lo que pasa.
+    val animada = remember { Animatable(objetivo) }
+    LaunchedEffect(objetivo) {
+        if (objetivo > animada.value) {
+            animada.snapTo(objetivo)
+        } else {
+            animada.animateTo(objetivo, tween(durationMillis = 1000, easing = LinearEasing))
+        }
+    }
+    val fraccion = animada.value
     val color by animateColorAsState(
         targetValue = when {
             segundosRestantes <= 5 -> Peligro
@@ -126,7 +146,8 @@ fun AnilloTotp(codigo: String, segundosRestantes: Long, tamano: Int = 92) {
     )
     Box(modifier = Modifier.size(tamano.dp), contentAlignment = Alignment.Center) {
         Canvas(modifier = Modifier.size(tamano.dp)) {
-            val grosor = 7.dp.toPx()
+            // Grosor proporcional: en 26dp un trazo de 7dp se come el círculo.
+            val grosor = (tamano * 0.09f).coerceIn(2.5f, 7f).dp.toPx()
             drawArc(
                 color = Borde,
                 startAngle = -90f,
@@ -143,8 +164,20 @@ fun AnilloTotp(codigo: String, segundosRestantes: Long, tamano: Int = 92) {
                 useCenter = false,
                 topLeft = Offset(grosor / 2, grosor / 2),
                 size = Size(size.width - grosor, size.height - grosor),
-                style = Stroke(width = grosor)
+                style = Stroke(width = grosor, cap = StrokeCap.Round)
             )
+        }
+        if (codigo.isBlank()) {
+            // Anillo suelto (la lista): dentro va la cuenta atrás, que es lo único
+            // que hay que leer. El texto se escala al círculo para que quepa.
+            Text(
+                text = segundosRestantes.toString(),
+                fontSize = (tamano * 0.42f).sp,
+                fontWeight = FontWeight.Bold,
+                color = color,
+                lineHeight = (tamano * 0.42f).sp
+            )
+            return@Box
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Row {

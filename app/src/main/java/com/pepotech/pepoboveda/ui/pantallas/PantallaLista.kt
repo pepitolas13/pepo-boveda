@@ -343,11 +343,13 @@ private fun FilaEntrada(
                     modifier = Modifier.clickable { alCopiarCodigo(codigo) }.padding(horizontal = 4.dp)
                 ) {
                     Text(codigo, style = MaterialTheme.typography.titleMedium, color = Ambar)
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(8.dp))
+                    // 34dp es el minimo en el que el numero de dentro se lee de un vistazo.
                     AnilloTotp(
                         codigo = "",
                         segundosRestantes = Totp.segundosRestantes(ahora, periodo),
-                        tamano = 26
+                        tamano = 34,
+                        periodo = periodo
                     )
                 }
             }

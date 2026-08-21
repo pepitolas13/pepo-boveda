@@ -96,7 +96,8 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
                         AnilloTotp(
                             codigo = codigo,
                             segundosRestantes = Totp.segundosRestantes(ahora, periodo),
-                            tamano = 80
+                            tamano = 80,
+                            periodo = periodo
                         )
                         Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
