@@ -57,6 +57,7 @@ import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
 import com.pepotech.pepoboveda.ui.theme.SuperficieAlta
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
+import com.pepotech.pepoboveda.util.AjustesSistema
 import com.pepotech.pepoboveda.util.Biometria
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
@@ -109,8 +110,19 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
     LaunchedEffect(Unit) { vm.vigilarInactividad() }
 
     val ofrecerBiometria by vm.ofrecerBiometria.collectAsStateWithLifecycle()
-    if (ofrecerBiometria && Biometria.disponible(actividad)) {
+    val hayHuella = remember { Biometria.disponible(actividad) }
+    if (ofrecerBiometria && hayHuella) {
         DialogoOfrecerBiometria(vm, actividad)
+    }
+    // Sin huella configurada no hay nada que ofrecer: pasamos directo al
+    // siguiente paso en vez de dejar la oferta colgada para siempre.
+    LaunchedEffect(ofrecerBiometria, hayHuella) {
+        if (ofrecerBiometria && !hayHuella) vm.cerrarOfertaBiometria()
+    }
+
+    val ofrecerGestor by vm.ofrecerGestor.collectAsStateWithLifecycle()
+    if (ofrecerGestor) {
+        DialogoOfrecerGestor(vm, actividad)
     }
 
     LaunchedEffect(estado) {
@@ -258,6 +270,42 @@ private fun DialogoOfrecerBiometria(vm: VaultViewModel, actividad: FragmentActiv
         },
         dismissButton = {
             TextButton(onClick = { vm.cerrarOfertaBiometria() }) {
+                Text("Ahora no", color = TextoSecundario)
+            }
+        }
+    )
+}
+
+/**
+ * Segunda oferta de bienvenida: activarme como gestor del sistema. Sin esto no
+ * salgo al rellenar contraseñas ni al crear una llave de acceso, y nadie
+ * encuentra solo el ajuste.
+ */
+@Composable
+private fun DialogoOfrecerGestor(vm: VaultViewModel, actividad: FragmentActivity) {
+    AlertDialog(
+        onDismissRequest = { vm.cerrarOfertaGestor() },
+        containerColor = SuperficieAlta,
+        title = { Text("¿Me pones como gestor?", color = TextoPrincipal) },
+        text = {
+            Text(
+                "Android no deja que una app se ponga sola: lo tienes que activar tú. " +
+                    "Te abro la pantalla de \"Contraseñas y llaves de acceso\" y marcas " +
+                    "Pepo Bóveda.\n\nSin esto no aparezco al rellenar contraseñas ni al " +
+                    "crear una llave de acceso. Lo puedes hacer más tarde desde Ajustes.",
+                color = TextoSecundario
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (!AjustesSistema.abrirProveedorCredenciales(actividad)) {
+                    vm.avisar("No encuentro esa pantalla en este móvil")
+                }
+                vm.cerrarOfertaGestor()
+            }) { Text("Abrir ajustes", color = Ambar) }
+        },
+        dismissButton = {
+            TextButton(onClick = { vm.cerrarOfertaGestor() }) {
                 Text("Ahora no", color = TextoSecundario)
             }
         }

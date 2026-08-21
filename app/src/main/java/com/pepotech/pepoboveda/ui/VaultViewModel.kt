@@ -378,6 +378,17 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cerrarOfertaBiometria() {
         _ofrecerBiometria.value = false
+        // Encadenamos con la otra cosa que hay que hacer una sola vez: ponerme
+        // como gestor de contraseñas del sistema. Si no, nadie lo encuentra.
+        _ofrecerGestor.value = true
+    }
+
+    /** Oferta, una sola vez, de activar Pepo Bóveda como gestor del sistema. */
+    private val _ofrecerGestor = MutableStateFlow(false)
+    val ofrecerGestor: StateFlow<Boolean> = _ofrecerGestor
+
+    fun cerrarOfertaGestor() {
+        _ofrecerGestor.value = false
     }
 
     // ------------------------------------------------------- exportar/importar
