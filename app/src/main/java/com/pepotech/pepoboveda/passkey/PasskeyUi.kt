@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,6 +62,44 @@ fun HojaPasskey(
         repositorio.ajustes.actual.biometriaActiva &&
             repositorio.biometria.estaConfigurada &&
             Biometria.disponible(actividad)
+    }
+
+    val pedirBiometria: () -> Unit = {
+        val cipher = try {
+            repositorio.biometria.cipherParaDesenvolver()
+        } catch (e: Exception) {
+            error = "La biometría ya no vale. Usa la contraseña."
+            null
+        }
+        if (cipher != null) {
+            Biometria.autenticar(
+                actividad = actividad,
+                cipher = cipher,
+                titulo = "Pepo Bóveda",
+                subtitulo = "Desbloquea para usar tu passkey",
+                alExito = { cifrador ->
+                    try {
+                        val clave = repositorio.biometria.leerEnvuelta(cifrador)
+                        repositorio.desbloquearConClaveMaestra(clave)
+                        haptica.exito()
+                        abierta = true
+                    } catch (e: Exception) {
+                        error = "No se pudo abrir la bóveda con biometría"
+                    }
+                },
+                alFallar = { error = it }
+            )
+        }
+    }
+
+    // Si hay huella, la pedimos sola en cuanto se abre la hoja: para eso está.
+    // Si el usuario la cancela, debajo sigue la contraseña maestra.
+    var biometriaPedida by remember { mutableStateOf(false) }
+    LaunchedEffect(abierta, biometriaLista) {
+        if (!abierta && biometriaLista && !biometriaPedida) {
+            biometriaPedida = true
+            pedirBiometria()
+        }
     }
 
     Box(
@@ -117,33 +156,7 @@ fun HojaPasskey(
                 }
                 if (biometriaLista) {
                     Spacer(Modifier.height(12.dp))
-                    BotonBorde(texto = "Usar biometría") {
-                        val cipher = try {
-                            repositorio.biometria.cipherParaDesenvolver()
-                        } catch (e: Exception) {
-                            error = "La biometría ya no vale. Usa la contraseña."
-                            null
-                        }
-                        if (cipher != null) {
-                            Biometria.autenticar(
-                                actividad = actividad,
-                                cipher = cipher,
-                                titulo = "Pepo Bóveda",
-                                subtitulo = "Desbloquea para usar tu passkey",
-                                alExito = { cifrador ->
-                                    try {
-                                        val clave = repositorio.biometria.leerEnvuelta(cifrador)
-                                        repositorio.desbloquearConClaveMaestra(clave)
-                                        haptica.exito()
-                                        abierta = true
-                                    } catch (e: Exception) {
-                                        error = "No se pudo abrir la bóveda con biometría"
-                                    }
-                                },
-                                alFallar = { error = it }
-                            )
-                        }
-                    }
+                    BotonBorde(texto = "Usar la huella") { pedirBiometria() }
                 }
             } else {
                 error?.let {
