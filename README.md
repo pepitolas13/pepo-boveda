@@ -61,17 +61,18 @@ Esto es importante y no lo voy a esconder:
 - **Probada a mano en dos dispositivos físicos.** Ahí se ha visto funcionar la bóveda,
   la biometría, el autofill, el registro de passkeys en el navegador, la cámara del
   escáner y el autenticador TOTP. Lo que no está es una batería de pruebas
-  automatizadas en dispositivo: los tests unitarios pasan (criptografía, Base32, TOTP,
-  generador, dominios, CBOR) y los instrumentados de Argon2 compilan pero no se han
-  corrido. Dos móviles no son un banco de pruebas: no esperes que esté probada en
+  automatizadas más amplia: los tests unitarios pasan (criptografía, Base32, TOTP,
+  generador, dominios, CBOR) y los instrumentados de Argon2 también se han corrido y
+  pasan. Pero dos móviles no son un banco de pruebas: no esperes que esté probada en
   todos los fabricantes ni en todas las versiones de Android.
-- Una auditoría adversarial encontró y corrigió tres fallos reales: suplantación de app
-  en el autofill (se derivaba un dominio desde el nombre del paquete), el bloqueo por
-  inactividad no actuaba en primer plano, y no había ningún freno a los intentos de
-  contraseña. El freno vive en memoria, así que reiniciar la app lo reinicia.
+- **Aquí es donde me vienes bien tú.** Si la pruebas y algo se rompe, me vendrá
+  fenomenal que me lo digas: qué móvil, qué versión de Android, qué hiciste y qué pasó.
+  Un fallo que encuentres es un fallo que dejo de tener. Abre un issue sin miedo, y si
+  te sabes buscar la vida, mira el código y dime qué está mal.
 - Sigue abierto: si Android no devuelve la firma de la app que pide una passkey, se
   firma igual en vez de abortar. Y el APK pesa ~44 MB porque incluye Argon2 para las
   cuatro ABI; con splits bajaría a unos 15 MB.
 
-La auditoría la hizo quien escribió el código. Encontró fallos que llevaban ahí desde
-el principio, lo que sugiere que se dejó otros. Si encuentras alguno, abre un issue.
+El código lo ha revisado quien lo ha escrito, que es el peor revisor posible. Por eso
+está aquí entero y por eso te pido que lo mires: no te pido confianza, te pido que lo
+compruebes.
