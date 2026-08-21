@@ -82,7 +82,6 @@ class PasskeyCreateActivity : FragmentActivity() {
             } else {
                 Origen.deWeb(datos.rpId)
             }
-            android.util.Log.e("PepoPasskey", "CREAR rpId=${datos.rpId} origen=$origen")
             val clientData = WebAuthn.clientDataJson("webauthn.create", datos.reto, origen)
             val authData = WebAuthn.authenticatorDataRegistro(datos.rpId, credId, par.x, par.y)
             val attestation = WebAuthn.attestationObject(authData)
@@ -120,7 +119,6 @@ class PasskeyCreateActivity : FragmentActivity() {
     }
 
     private fun fallar(mensaje: String) {
-        android.util.Log.e("PepoPasskey", "FALLO CREAR: $mensaje")
         val respuesta = Intent()
         PendingIntentHandler.setCreateCredentialException(
             respuesta,
