@@ -3,6 +3,7 @@ package com.pepotech.pepoboveda.ui.pantallas
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
@@ -36,8 +37,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.pepotech.pepoboveda.PepoBovedaApp
+import com.pepotech.pepoboveda.camara.MotorCamara
+import com.pepotech.pepoboveda.crypto.BiometricKeyStore
 import com.pepotech.pepoboveda.data.AlmacenAjustes
+import com.pepotech.pepoboveda.data.modoBiometriaActivo
+import com.pepotech.pepoboveda.ui.FlujoBiometria
 import com.pepotech.pepoboveda.ui.Pantalla
 import com.pepotech.pepoboveda.ui.VaultViewModel
 import com.pepotech.pepoboveda.ui.componentes.BotonAmbar
@@ -51,8 +58,10 @@ import com.pepotech.pepoboveda.ui.theme.DegradadoAmbar
 import com.pepotech.pepoboveda.ui.theme.Obsidiana
 import com.pepotech.pepoboveda.ui.theme.Peligro
 import com.pepotech.pepoboveda.ui.theme.Superficie
+import com.pepotech.pepoboveda.ui.theme.SuperficieAlta
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
+import com.pepotech.pepoboveda.util.AjustesSistema
 import com.pepotech.pepoboveda.util.Biometria
 import com.pepotech.pepoboveda.util.Haptica
 
@@ -74,6 +83,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
     val lanzadorCrear = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
+        PepoBovedaApp.salidaTerminada(contexto)
         if (uri != null) {
             val clave = passwordExportacion
             passwordExportacion = ""
@@ -86,10 +96,53 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
     val lanzadorAbrir = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri ->
+        PepoBovedaApp.salidaTerminada(contexto)
         if (uri != null) {
             uriPendiente = uri
             dialogoImportar = true
         }
+    }
+
+    // --------------------------------------------------------------- huella
+    val flujo = remember { FlujoBiometria(actividad, vm.repositorio) }
+    // La capacidad se vuelve a preguntar al volver a esta pantalla: si el usuario acaba
+    // de registrar una huella en Android, aquí tiene que aparecer sin reiniciar nada.
+    var capacidad by remember { mutableStateOf(Biometria.capacidad(contexto)) }
+    LifecycleResumeEffect(Unit) {
+        capacidad = Biometria.capacidad(contexto)
+        onPauseOrDispose { }
+    }
+    val nivel = Biometria.decidirNivel(capacidad)
+    val modoActivo = ajustes.modoBiometriaActivo
+    var dialogoCompatible by remember { mutableStateOf<String?>(null) }
+
+    fun tratarActivacion(resultado: FlujoBiometria.ResultadoActivacion) {
+        when (resultado) {
+            is FlujoBiometria.ResultadoActivacion.Activada -> {
+                haptica.exito()
+                vm.avisar(
+                    if (resultado.modo == BiometricKeyStore.Modo.FUERTE) "Huella activada en modo fuerte"
+                    else "Huella activada en modo compatible"
+                )
+            }
+            FlujoBiometria.ResultadoActivacion.Cancelada -> vm.avisar("Huella cancelada")
+            is FlujoBiometria.ResultadoActivacion.FuerteRota -> {
+                haptica.error()
+                dialogoCompatible = "Android acepta tu huella, pero el Keystore de este móvil la rechaza al usarla " +
+                    "(fallo típico de ROMs personalizadas). Detalle técnico: ${resultado.detalle}."
+            }
+            is FlujoBiometria.ResultadoActivacion.Error -> {
+                haptica.error()
+                vm.avisar(resultado.texto)
+            }
+        }
+    }
+
+    // La comprobación de "bóveda abierta" la hace FlujoBiometria.activar; aquí no se repite.
+    fun activarFuerte() = flujo.activar(BiometricKeyStore.Modo.FUERTE, ::tratarActivacion)
+
+    fun ofrecerCompatible(motivo: String) {
+        dialogoCompatible = motivo
     }
 
     Column(
@@ -105,49 +158,52 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
             EtiquetaSeccion("Seguridad")
             Spacer(Modifier.height(10.dp))
             FilaAjuste(
-                titulo = "Abrir con biometría",
-                descripcion = if (Biometria.disponible(contexto)) {
-                    "La clave maestra se guarda envuelta por el Keystore, atada a tu huella."
-                } else {
-                    "Este dispositivo no tiene biometría fuerte disponible."
+                titulo = "Abrir con huella",
+                descripcion = when {
+                    modoActivo != null -> "Activa en modo ${modoActivo.etiqueta}."
+                    nivel == Biometria.Nivel.FUERTE ->
+                        "La clave maestra se guarda envuelta por el Keystore, atada a tu huella de Clase 3."
+                    nivel == Biometria.Nivel.COMPATIBLE ->
+                        "${Biometria.explicarFaltaDeFuerte(capacidad)} Hay un modo compatible: Android comprueba la huella o el PIN y la app abre la bóveda."
+                    else ->
+                        "Sin huella ni PIN utilizables ahora mismo: ${Biometria.explicar(capacidad.compatible)}."
                 },
                 activo = ajustes.biometriaActiva,
-                habilitado = Biometria.disponible(contexto),
+                habilitado = nivel != Biometria.Nivel.NINGUNO || ajustes.biometriaActiva,
                 alCambiar = { activar ->
                     if (activar) {
-                        val clave = vm.repositorio.claveMaestraEnMemoria()
-                        if (clave == null) {
-                            vm.avisar("Desbloquea la bóveda antes de activar la biometría")
-                        } else {
-                            try {
-                                val cipher = vm.repositorio.biometria.cipherParaEnvolver()
-                                Biometria.autenticar(
-                                    actividad = actividad,
-                                    cipher = cipher,
-                                    titulo = "Activar biometría",
-                                    subtitulo = "Confirma para envolver tu clave maestra",
-                                    alExito = { cifrador ->
-                                        try {
-                                            vm.repositorio.biometria.guardarEnvuelta(cifrador, clave)
-                                            vm.ajustarBiometria(true)
-                                            haptica.exito()
-                                            vm.avisar("Biometría activada")
-                                        } catch (e: Exception) {
-                                            vm.avisar("No se pudo envolver la clave")
-                                        }
-                                    },
-                                    alFallar = { vm.avisar("Biometría cancelada") }
-                                )
-                            } catch (e: Exception) {
-                                vm.avisar("No se pudo preparar la clave biométrica")
-                            }
+                        when (nivel) {
+                            Biometria.Nivel.FUERTE -> activarFuerte()
+                            Biometria.Nivel.COMPATIBLE -> ofrecerCompatible(Biometria.explicarFaltaDeFuerte(capacidad))
+                            Biometria.Nivel.NINGUNO -> vm.avisar("Este móvil no ofrece huella ni PIN utilizables ahora mismo")
                         }
                     } else {
-                        vm.repositorio.biometria.eliminar()
-                        vm.ajustarBiometria(false)
+                        flujo.desactivar()
+                        haptica.tic()
+                        vm.avisar("Huella desactivada")
                     }
                 }
             )
+            if (capacidad.fuerte == BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED &&
+                capacidad.debil != BiometricManager.BIOMETRIC_SUCCESS
+            ) {
+                Spacer(Modifier.height(10.dp))
+                BotonBorde("Registrar una huella en Android") {
+                    if (!AjustesSistema.abrirRegistroHuella(contexto)) vm.avisar("No encuentro esa pantalla en este móvil")
+                }
+            }
+            when {
+                ajustes.biometriaActiva && modoActivo == BiometricKeyStore.Modo.FUERTE && Biometria.hayCompatible(capacidad) ->
+                    EnlaceAjuste("Cambiar a modo compatible") {
+                        ofrecerCompatible("Si la huella te falla en este móvil aunque Android la acepte, el modo compatible suele funcionar.")
+                    }
+                ajustes.biometriaActiva && modoActivo == BiometricKeyStore.Modo.COMPATIBLE && Biometria.hayFuerte(capacidad) ->
+                    EnlaceAjuste("Volver al modo fuerte") { activarFuerte() }
+                !ajustes.biometriaActiva && nivel == Biometria.Nivel.FUERTE && Biometria.hayCompatible(capacidad) ->
+                    EnlaceAjuste("Activar en modo compatible") {
+                        ofrecerCompatible("Para quien ya sabe que la huella de Clase 3 le falla en este móvil.")
+                    }
+            }
             Spacer(Modifier.height(14.dp))
             EtiquetaSeccion("Bloqueo automático")
             Spacer(Modifier.height(8.dp))
@@ -175,6 +231,27 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         Spacer(Modifier.height(16.dp))
 
         TarjetaPepo {
+            EtiquetaSeccion("Cámara del escáner")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Automático prueba CameraX y, si falla, pasa solo al motor compatible. Si la imagen sale negra o no lee nada, fuerza el compatible: usa la API antigua de cámara, que funciona hasta en los móviles más raros. Y si nada va, siempre puedes leer el QR desde una captura.",
+                color = TextoSecundario,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                MotorCamara.entries.forEach { motor ->
+                    ChipOpcion(motor.etiqueta, ajustes.motorCamara == motor.clave) {
+                        haptica.tic()
+                        vm.ajustarMotorCamara(motor.clave)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        TarjetaPepo {
             EtiquetaSeccion("Copia de seguridad")
             Spacer(Modifier.height(8.dp))
             Text(
@@ -185,7 +262,15 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
             Spacer(Modifier.height(12.dp))
             BotonBorde("Exportar bóveda cifrada") { dialogoExportar = true }
             Spacer(Modifier.height(10.dp))
-            BotonBorde("Importar copia") { lanzadorAbrir.launch(arrayOf("*/*")) }
+            BotonBorde("Importar copia") {
+                PepoBovedaApp.salidaPendiente(contexto)
+                try {
+                    lanzadorAbrir.launch(arrayOf("*/*"))
+                } catch (e: Exception) {
+                    PepoBovedaApp.salidaTerminada(contexto)
+                    vm.avisar("Este móvil no tiene ningún selector de archivos que pueda abrir")
+                }
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -239,6 +324,33 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         Spacer(Modifier.height(40.dp))
     }
 
+    dialogoCompatible?.let { motivo ->
+        AlertDialog(
+            onDismissRequest = { dialogoCompatible = null },
+            containerColor = SuperficieAlta,
+            title = { Text("Modo compatible", color = TextoPrincipal) },
+            text = {
+                Text(
+                    motivo + "\n\nEn este modo la huella o el PIN los comprueba Android y la app abre la bóveda. " +
+                        "La clave maestra sigue envuelta por el Keystore y no sale del móvil, pero no queda atada " +
+                        "al chip como en el modo fuerte: es algo más débil. Tu contraseña maestra sigue siendo la " +
+                        "única llave real, y puedes volver al modo fuerte cuando quieras.",
+                    color = TextoSecundario,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    dialogoCompatible = null
+                    flujo.activar(BiometricKeyStore.Modo.COMPATIBLE, ::tratarActivacion)
+                }) { Text("Activar modo compatible", color = Ambar) }
+            },
+            dismissButton = {
+                TextButton(onClick = { dialogoCompatible = null }) { Text("Ahora no", color = TextoSecundario) }
+            }
+        )
+    }
+
     if (dialogoExportar) {
         DialogoContrasena(
             titulo = "Contraseña de la copia",
@@ -247,7 +359,14 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
             alConfirmar = { clave ->
                 passwordExportacion = clave
                 dialogoExportar = false
-                lanzadorCrear.launch("pepo-boveda-${System.currentTimeMillis()}.bvda")
+                PepoBovedaApp.salidaPendiente(contexto)
+                try {
+                    lanzadorCrear.launch("pepo-boveda-${System.currentTimeMillis()}.bvda")
+                } catch (e: Exception) {
+                    PepoBovedaApp.salidaTerminada(contexto)
+                    passwordExportacion = ""
+                    vm.avisar("Este móvil no tiene ningún selector de archivos que pueda abrir")
+                }
             },
             alCancelar = { dialogoExportar = false }
         )
@@ -284,7 +403,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                     CampoPepo(valor = nuevaMaestra, etiqueta = "Nueva contraseña", alCambiar = { nuevaMaestra = it }, esContrasena = true)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "Se vuelve a cifrar toda la bóveda y se desactiva la biometría.",
+                        "Se vuelve a cifrar toda la bóveda y se desactiva la huella.",
                         color = TextoSecundario,
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -309,7 +428,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         AlertDialog(
             onDismissRequest = { dialogoBorrar = false },
             title = { Text("¿Borrar la bóveda entera?") },
-            text = { Text("Se elimina el archivo cifrado y la clave biométrica. Si no tienes copia, no hay vuelta atrás.") },
+            text = { Text("Se elimina el archivo cifrado y la clave de la huella. Si no tienes copia, no hay vuelta atrás.") },
             confirmButton = {
                 TextButton(onClick = {
                     dialogoBorrar = false
@@ -320,6 +439,19 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
             dismissButton = { TextButton(onClick = { dialogoBorrar = false }) { Text("Cancelar") } }
         )
     }
+}
+
+@Composable
+private fun EnlaceAjuste(texto: String, alPulsar: () -> Unit) {
+    Spacer(Modifier.height(8.dp))
+    Text(
+        texto,
+        color = Ambar,
+        style = MaterialTheme.typography.labelLarge,
+        modifier = Modifier
+            .clickable { alPulsar() }
+            .padding(vertical = 4.dp)
+    )
 }
 
 @Composable
@@ -392,4 +524,3 @@ private fun ChipOpcion(texto: String, activo: Boolean, alPulsar: () -> Unit) {
         Text(texto, color = if (activo) Obsidiana else TextoSecundario, style = MaterialTheme.typography.bodyMedium)
     }
 }
-

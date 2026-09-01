@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.pepotech.pepoboveda.crypto.BiometricKeyStore
 import com.pepotech.pepoboveda.data.EstadoBoveda
 import com.pepotech.pepoboveda.ui.pantallas.PantallaAcercaDe
 import com.pepotech.pepoboveda.ui.pantallas.PantallaAjustes
@@ -110,14 +111,18 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
     LaunchedEffect(Unit) { vm.vigilarInactividad() }
 
     val ofrecerBiometria by vm.ofrecerBiometria.collectAsStateWithLifecycle()
-    val hayHuella = remember { Biometria.disponible(actividad) }
-    if (ofrecerBiometria && hayHuella) {
-        DialogoOfrecerBiometria(vm, actividad)
+    // Se pregunta cuando toca ofrecerla, no al arrancar la app: así cuenta una huella
+    // registrada hace un minuto, y un sensor ocupado en el arranque no la esconde para siempre.
+    val modoOfrecido = remember(ofrecerBiometria) {
+        if (ofrecerBiometria) FlujoBiometria.modoRecomendado(Biometria.capacidad(actividad)) else null
     }
-    // Sin huella configurada no hay nada que ofrecer: pasamos directo al
+    if (ofrecerBiometria && modoOfrecido != null) {
+        DialogoOfrecerBiometria(vm, actividad, modoOfrecido)
+    }
+    // Sin huella ni PIN utilizables no hay nada que ofrecer: pasamos directo al
     // siguiente paso en vez de dejar la oferta colgada para siempre.
-    LaunchedEffect(ofrecerBiometria, hayHuella) {
-        if (ofrecerBiometria && !hayHuella) vm.cerrarOfertaBiometria()
+    LaunchedEffect(ofrecerBiometria, modoOfrecido) {
+        if (ofrecerBiometria && modoOfrecido == null) vm.cerrarOfertaBiometria()
     }
 
     val ofrecerGestor by vm.ofrecerGestor.collectAsStateWithLifecycle()
@@ -184,7 +189,7 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
                     Pantalla.Generador -> PantallaGenerador(vm)
                     Pantalla.Passkeys -> PantallaPasskeys(vm)
                     Pantalla.Autenticador -> PantallaAutenticador(vm, estado)
-                    is Pantalla.Escaner -> PantallaEscaner(vm, destino.entradaDestino, destino.soloManual)
+                    is Pantalla.Escaner -> PantallaEscaner(vm, actividad, destino.entradaDestino, destino.soloManual)
                     Pantalla.Ajustes -> PantallaAjustes(vm, actividad)
                     Pantalla.AcercaDe -> PantallaAcercaDe(vm)
                 }
@@ -216,38 +221,22 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
  * queda el interruptor de siempre en Ajustes.
  */
 @Composable
-private fun DialogoOfrecerBiometria(vm: VaultViewModel, actividad: FragmentActivity) {
+private fun DialogoOfrecerBiometria(vm: VaultViewModel, actividad: FragmentActivity, modo: BiometricKeyStore.Modo) {
+    val flujo = remember { FlujoBiometria(actividad, vm.repositorio) }
+    val compatible = modo == BiometricKeyStore.Modo.COMPATIBLE
+
     fun activar() {
-        val clave = vm.repositorio.claveMaestraEnMemoria()
-        if (clave == null) {
-            vm.avisar("La bóveda está bloqueada")
-            vm.cerrarOfertaBiometria()
-            return
-        }
-        try {
-            val cipher = vm.repositorio.biometria.cipherParaEnvolver()
-            Biometria.autenticar(
-                actividad = actividad,
-                cipher = cipher,
-                titulo = "Activar biometría",
-                subtitulo = "Confirma para envolver tu clave maestra",
-                alExito = { cifrador ->
-                    try {
-                        vm.repositorio.biometria.guardarEnvuelta(cifrador, clave)
-                        vm.ajustarBiometria(true)
-                        vm.avisar("Listo: la próxima vez entras con la huella")
-                    } catch (e: Exception) {
-                        vm.avisar("No se pudo envolver la clave")
-                    }
-                    vm.cerrarOfertaBiometria()
-                },
-                alFallar = {
-                    vm.avisar("Biometría cancelada. Puedes activarla en Ajustes.")
-                    vm.cerrarOfertaBiometria()
-                }
-            )
-        } catch (e: Exception) {
-            vm.avisar("No se pudo preparar la clave biométrica")
+        flujo.activar(modo) { resultado ->
+            when (resultado) {
+                is FlujoBiometria.ResultadoActivacion.Activada ->
+                    vm.avisar("Listo: la próxima vez entras con la huella")
+                FlujoBiometria.ResultadoActivacion.Cancelada ->
+                    vm.avisar("Huella cancelada. Puedes activarla en Ajustes.")
+                is FlujoBiometria.ResultadoActivacion.FuerteRota ->
+                    vm.avisar("Android acepta tu huella pero el Keystore la rechaza. En Ajustes > Seguridad puedes activar el modo compatible.")
+                is FlujoBiometria.ResultadoActivacion.Error ->
+                    vm.avisar(resultado.texto)
+            }
             vm.cerrarOfertaBiometria()
         }
     }
@@ -255,12 +244,19 @@ private fun DialogoOfrecerBiometria(vm: VaultViewModel, actividad: FragmentActiv
     AlertDialog(
         onDismissRequest = { vm.cerrarOfertaBiometria() },
         containerColor = SuperficieAlta,
-        title = { Text("¿Abrir con tu huella?", color = TextoPrincipal) },
+        title = { Text(if (compatible) "¿Abrir con tu huella o tu PIN?" else "¿Abrir con tu huella?", color = TextoPrincipal) },
         text = {
             Text(
-                "Tu contraseña maestra seguirá siendo la única llave: la huella solo la desenvuelve, " +
-                    "guardada por el Keystore de Android y atada a este móvil. Si cambias la biometría del " +
-                    "dispositivo, deja de valer y toca escribir la contraseña.",
+                if (compatible) {
+                    "Este móvil no ofrece huella de Clase 3, así que iría en modo compatible: Android comprueba " +
+                        "tu huella o el PIN y la app abre la bóveda. La clave maestra queda envuelta por el Keystore " +
+                        "y no sale del móvil, pero no queda atada al chip como en el modo fuerte. Tu contraseña " +
+                        "maestra sigue siendo la única llave real."
+                } else {
+                    "Tu contraseña maestra seguirá siendo la única llave: la huella solo la desenvuelve, " +
+                        "guardada por el Keystore de Android y atada a este móvil. Si cambias la biometría del " +
+                        "dispositivo, deja de valer y toca escribir la contraseña."
+                },
                 color = TextoSecundario,
                 style = MaterialTheme.typography.bodyMedium
             )

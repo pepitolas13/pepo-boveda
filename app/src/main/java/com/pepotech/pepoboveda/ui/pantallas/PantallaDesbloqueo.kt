@@ -28,8 +28,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pepotech.pepoboveda.crypto.BiometricKeyStore
+import com.pepotech.pepoboveda.ui.FlujoBiometria
 import com.pepotech.pepoboveda.ui.VaultViewModel
 import com.pepotech.pepoboveda.ui.componentes.BotonAmbar
 import com.pepotech.pepoboveda.ui.componentes.BotonBorde
@@ -38,7 +40,6 @@ import com.pepotech.pepoboveda.ui.componentes.PuertaBoveda
 import com.pepotech.pepoboveda.ui.theme.Ambar
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
-import com.pepotech.pepoboveda.util.Biometria
 import com.pepotech.pepoboveda.util.Haptica
 
 @Composable
@@ -52,41 +53,42 @@ fun PantallaDesbloqueo(vm: VaultViewModel, actividad: FragmentActivity) {
     var fallos by remember { mutableIntStateOf(0) }
     val sacudida = remember { Animatable(0f) }
     val ajustes by vm.ajustes.collectAsStateWithLifecycle()
+    val flujo = remember { FlujoBiometria(actividad, vm.repositorio) }
 
-    val biometriaUsable = ajustes.biometriaActiva &&
-        vm.repositorio.biometria.estaConfigurada &&
-        Biometria.disponible(contexto)
-
-    fun lanzarBiometria() {
-        try {
-            val cipher = vm.repositorio.biometria.cipherParaDesenvolver()
-            Biometria.autenticar(
-                actividad = actividad,
-                cipher = cipher,
-                titulo = "Abrir Pepo Bóveda",
-                subtitulo = "Usa tu biometría para descifrar la clave maestra",
-                alExito = { cifrador ->
-                    try {
-                        val clave = vm.repositorio.biometria.leerEnvuelta(cifrador)
-                        abriendo = true
-                        haptica.exito()
-                        vm.desbloquearConClave(clave) { correcto -> if (!correcto) abriendo = false }
-                    } catch (e: Exception) {
-                        mensajeBiometria = "No se pudo descifrar la clave. Usa tu contraseña maestra."
-                    }
-                },
-                alFallar = { texto -> mensajeBiometria = texto }
-            )
-        } catch (e: BiometricKeyStore.BiometriaInvalidadaException) {
-            mensajeBiometria = "La biometría del dispositivo cambió. Entra con la contraseña maestra y vuelve a activarla."
-            vm.ajustarBiometria(false)
-        } catch (e: Exception) {
-            mensajeBiometria = "La biometría no está disponible ahora mismo."
-        }
+    // Se pregunta cada vez que la pantalla vuelve a primer plano, no una sola vez: un sensor
+    // ocupado por otra app o una huella recién registrada cambian la respuesta.
+    var biometriaUsable by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(ajustes.biometriaActiva, ajustes.biometriaModo) {
+        biometriaUsable = flujo.disponible()
+        onPauseOrDispose { }
     }
 
+    fun lanzarBiometria() {
+        mensajeBiometria = null
+        val compatible = flujo.modoActivo == BiometricKeyStore.Modo.COMPATIBLE
+        flujo.desbloquear(
+            titulo = "Abrir Pepo Bóveda",
+            subtitulo = if (compatible) "Confirma con tu huella o con el PIN del móvil" else "Usa tu huella para descifrar la clave maestra",
+            alClave = { clave ->
+                abriendo = true
+                haptica.exito()
+                vm.desbloquearConClave(clave) { correcto -> if (!correcto) abriendo = false }
+            },
+            alFallo = { fallo ->
+                if (fallo.cambiaDisponibilidad) biometriaUsable = flujo.disponible()
+                mensajeBiometria = fallo.texto
+                if (fallo.texto != null) haptica.error()
+            },
+            alIntentoFallido = { haptica.error() }
+        )
+    }
+
+    var biometriaLanzada by remember { mutableStateOf(false) }
     LaunchedEffect(biometriaUsable) {
-        if (biometriaUsable) lanzarBiometria()
+        if (biometriaUsable && !biometriaLanzada) {
+            biometriaLanzada = true
+            lanzarBiometria()
+        }
     }
 
     Column(
@@ -140,7 +142,7 @@ fun PantallaDesbloqueo(vm: VaultViewModel, actividad: FragmentActivity) {
         }
         if (biometriaUsable) {
             Spacer(Modifier.height(12.dp))
-            BotonBorde("Usar biometría") { lanzarBiometria() }
+            BotonBorde(flujo.etiquetaBoton()) { lanzarBiometria() }
         }
         mensajeBiometria?.let {
             Spacer(Modifier.height(14.dp))
@@ -165,5 +167,3 @@ fun PantallaDesbloqueo(vm: VaultViewModel, actividad: FragmentActivity) {
         }
     }
 }
-
-

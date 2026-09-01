@@ -2,22 +2,33 @@ package com.pepotech.pepoboveda.ui.pantallas
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.pepotech.pepoboveda.crypto.VaultCrypto
 import com.pepotech.pepoboveda.crypto.Wordlist
 import com.pepotech.pepoboveda.ui.VaultViewModel
@@ -26,8 +37,15 @@ import com.pepotech.pepoboveda.ui.componentes.EtiquetaSeccion
 import com.pepotech.pepoboveda.ui.componentes.TarjetaPepo
 import com.pepotech.pepoboveda.ui.theme.Ambar
 import com.pepotech.pepoboveda.ui.theme.Menta
+import com.pepotech.pepoboveda.ui.theme.Obsidiana
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
+import com.pepotech.pepoboveda.util.AjustesSistema
+import com.pepotech.pepoboveda.util.Diagnostico
+import com.pepotech.pepoboveda.util.InformeDiagnostico
+import com.pepotech.pepoboveda.util.Portapapeles
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PantallaAcercaDe(vm: VaultViewModel) {
@@ -42,6 +60,22 @@ fun PantallaAcercaDe(vm: VaultViewModel) {
     }
     val tieneInternet = permisos.any { it.contains("INTERNET") }
     val tamanoArchivo = remember { vm.repositorio.archivoBoveda.length() }
+
+    // Estado en vivo y últimos pasos: se refrescan cada vez que se vuelve a esta pantalla.
+    // El sondeo habla con los servicios de biometría y cámara, así que va fuera del hilo principal.
+    var estadoDispositivo by remember { mutableStateOf<List<String>>(emptyList()) }
+    var registro by remember { mutableStateOf<List<String>>(emptyList()) }
+    var refresco by remember { mutableIntStateOf(0) }
+    LifecycleResumeEffect(Unit) {
+        refresco++
+        onPauseOrDispose { }
+    }
+    LaunchedEffect(refresco) {
+        registro = Diagnostico.ultimas(30)
+        estadoDispositivo = withContext(Dispatchers.IO) { InformeDiagnostico.estado(contexto, vm.repositorio) }
+    }
+
+    fun informe(): String = InformeDiagnostico.generar(contexto, estadoDispositivo)
 
     Column(
         modifier = Modifier
@@ -84,7 +118,8 @@ fun PantallaAcercaDe(vm: VaultViewModel) {
             Texto("Cifrado: AES-256-GCM con nonce de 12 bytes y etiqueta de 128 bits.")
             Texto("La cabecera del archivo se autentica como AAD, así que nadie puede tocar los parámetros sin romper el descifrado.")
             Texto("La clave maestra vive solo en memoria mientras la bóveda está abierta y se sobrescribe al bloquear.")
-            Texto("Biometría: la clave maestra se envuelve con una clave AES del Android Keystore que exige Clase 3 en cada uso.")
+            Texto("Huella, modo fuerte: la clave maestra se envuelve con una clave AES del Android Keystore que exige huella de Clase 3 en cada uso y se invalida si cambia la biometría.")
+            Texto("Huella, modo compatible (solo si lo activas): la clave AES vive en el Keystore y no sale del móvil, pero no exige autenticación del chip; la huella o el PIN los comprueba Android y la app decide abrir. Es más débil y por eso se avisa.")
         }
 
         Spacer(Modifier.height(14.dp))
@@ -117,16 +152,70 @@ fun PantallaAcercaDe(vm: VaultViewModel) {
             Texto("El relleno automático solo ofrece entradas cuyo dominio raíz coincide con el de la app o web que lo pide.")
         }
 
+        Spacer(Modifier.height(14.dp))
+
+        TarjetaPepo {
+            EtiquetaSeccion("Diagnóstico de este móvil")
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Lo que Android dice de la huella y de la cámara, y los últimos pasos que dio la app con ellas. Aquí no entra nada tuyo: ni claves, ni contraseñas, ni el contenido de ningún QR. Si algo te falla, cópialo y mándamelo.",
+                color = TextoSecundario,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(Modifier.height(10.dp))
+            if (estadoDispositivo.isEmpty()) {
+                Text("Consultando al sistema…", color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
+            }
+            estadoDispositivo.forEach { linea ->
+                Text(linea, color = TextoPrincipal, style = MaterialTheme.typography.bodyMedium)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("Últimos pasos", color = TextoSecundario, style = MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.height(6.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Obsidiana)
+                    .padding(10.dp)
+                    .horizontalScroll(rememberScrollState())
+            ) {
+                if (registro.isEmpty()) {
+                    Text("(nada registrado todavía)", color = TextoSecundario, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+                } else {
+                    registro.forEach { linea ->
+                        Text(linea, color = TextoPrincipal, fontFamily = FontFamily.Monospace, fontSize = 11.sp, maxLines = 1)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            BotonBorde("Copiar informe") {
+                Portapapeles.copiar(contexto, "Diagnóstico Pepo Bóveda", informe())
+                vm.avisar("Informe copiado. Pégalo donde me lo quieras mandar.")
+            }
+            Spacer(Modifier.height(10.dp))
+            BotonBorde("Compartir informe") {
+                // Compartir no devuelve resultado, así que no se exime al auto-bloqueo: si el
+                // ajuste es "Al cerrar la app", al volver toca abrirla otra vez. Es lo correcto.
+                val intent = Intent(Intent.ACTION_SEND)
+                    .setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "Diagnóstico Pepo Bóveda")
+                    .putExtra(Intent.EXTRA_TEXT, informe())
+                if (!AjustesSistema.abrir(contexto, Intent.createChooser(intent, "Compartir informe"))) {
+                    vm.avisar("No hay ninguna app con la que compartirlo. Usa Copiar informe.")
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            BotonBorde("Borrar registro") {
+                Diagnostico.borrar()
+                registro = emptyList()
+                vm.avisar("Registro borrado")
+            }
+        }
+
         Spacer(Modifier.height(20.dp))
         BotonBorde("Ver la ficha del sistema") {
-            try {
-                contexto.startActivity(
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${contexto.packageName}"))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-            } catch (e: Exception) {
-                vm.avisar("No se pudo abrir la ficha del sistema")
-            }
+            if (!AjustesSistema.abrirFichaApp(contexto)) vm.avisar("No se pudo abrir la ficha del sistema")
         }
         Spacer(Modifier.height(12.dp))
         BotonBorde("Volver") { vm.volverALista() }

@@ -30,7 +30,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.ui.FlujoBiometria
 import com.pepotech.pepoboveda.ui.componentes.BotonAmbar
 import com.pepotech.pepoboveda.ui.componentes.BotonBorde
 import com.pepotech.pepoboveda.ui.componentes.CampoPepo
@@ -39,7 +42,7 @@ import com.pepotech.pepoboveda.ui.theme.Ambar
 import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
 import com.pepotech.pepoboveda.ui.theme.Peligro
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
-import com.pepotech.pepoboveda.util.Biometria
+import com.pepotech.pepoboveda.util.Diagnostico
 import com.pepotech.pepoboveda.util.Haptica
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,10 +101,12 @@ class AutofillAuthActivity : FragmentActivity() {
         var error by remember { mutableStateOf<String?>(null) }
         var trabajando by remember { mutableStateOf(false) }
         val ambito = androidx.compose.runtime.rememberCoroutineScope()
-        val biometriaLista = remember {
-            repositorio.ajustes.actual.biometriaActiva &&
-                repositorio.biometria.estaConfigurada &&
-                Biometria.disponible(this)
+        val flujo = remember { FlujoBiometria(this, repositorio) }
+        // Se pregunta al entrar y al volver, no se cachea: un sensor ocupado cambia la respuesta.
+        var biometriaLista by remember { mutableStateOf(false) }
+        LifecycleResumeEffect(Unit) {
+            biometriaLista = flujo.disponible()
+            onPauseOrDispose { }
         }
 
         Box(
@@ -157,8 +162,13 @@ class AutofillAuthActivity : FragmentActivity() {
                 }
                 if (biometriaLista) {
                     Spacer(Modifier.height(12.dp))
-                    BotonBorde(texto = "Usar biometría") {
-                        desbloquearConBiometria { error = it }
+                    BotonBorde(texto = flujo.etiquetaBoton()) {
+                        desbloquearConBiometria(
+                            flujo = flujo,
+                            haptica = haptica,
+                            alFallar = { error = it },
+                            alCambiarDisponibilidad = { biometriaLista = flujo.disponible() }
+                        )
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -180,28 +190,32 @@ class AutofillAuthActivity : FragmentActivity() {
         }
     }
 
-    private fun desbloquearConBiometria(alFallar: (String) -> Unit) {
-        val cipher = try {
-            repositorio.biometria.cipherParaDesenvolver()
-        } catch (e: Exception) {
-            alFallar("La biometría ya no vale. Usa la contraseña.")
-            return
-        }
-        Biometria.autenticar(
-            actividad = this,
-            cipher = cipher,
+    private fun desbloquearConBiometria(
+        flujo: FlujoBiometria,
+        haptica: Haptica,
+        alFallar: (String) -> Unit,
+        alCambiarDisponibilidad: () -> Unit
+    ) {
+        flujo.desbloquear(
             titulo = "Pepo Bóveda",
             subtitulo = "Desbloquea para rellenar",
-            alExito = { cifrador ->
+            alClave = { clave ->
                 try {
-                    val clave = repositorio.biometria.leerEnvuelta(cifrador)
                     repositorio.desbloquearConClaveMaestra(clave)
                     responder()
                 } catch (e: Exception) {
-                    alFallar("No se pudo abrir la bóveda con biometría")
+                    Diagnostico.apuntar("huella", "La clave desenvuelta no abrió la bóveda (autofill): ${e.javaClass.simpleName}")
+                    alFallar("No se pudo abrir la bóveda con la huella. Usa la contraseña.")
+                } finally {
+                    // El repositorio guarda su propia copia: esta se borra aquí mismo.
+                    Zeroizar.borrar(clave)
                 }
             },
-            alFallar = { alFallar(it) }
+            alFallo = { fallo ->
+                if (fallo.cambiaDisponibilidad) alCambiarDisponibilidad()
+                fallo.texto?.let(alFallar)
+            },
+            alIntentoFallido = { haptica.error() }
         )
     }
 

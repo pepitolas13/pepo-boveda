@@ -5,6 +5,7 @@ import com.pepotech.pepoboveda.crypto.BiometricKeyStore
 import com.pepotech.pepoboveda.crypto.KdfParams
 import com.pepotech.pepoboveda.crypto.VaultCrypto
 import com.pepotech.pepoboveda.crypto.Zeroizar
+import com.pepotech.pepoboveda.util.Diagnostico
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.json.Json
@@ -16,7 +17,7 @@ class VaultRepository private constructor(contexto: Context) {
     private val app = contexto.applicationContext
 
     val archivoBoveda = File(app.filesDir, "boveda.bvda")
-    val biometria = BiometricKeyStore(File(app.filesDir, "bio.blob"))
+    val biometria = BiometricKeyStore(app.filesDir)
     val ajustes = AlmacenAjustes(app)
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -191,8 +192,13 @@ class VaultRepository private constructor(contexto: Context) {
         salt = nuevoSalt
         params = KdfParams.PREDETERMINADOS
         persistir()
-        biometria.eliminar()
-        ajustes.actualizar { it.copy(biometriaActiva = false) }
+        desactivarBiometria()
+    }
+
+    /** Borra las claves y blobs de ambos modos y apaga el ajuste. Único sitio que lo hace. */
+    fun desactivarBiometria() {
+        biometria.eliminarTodo()
+        ajustes.actualizar { it.copy(biometriaActiva = false, biometriaModo = "") }
     }
 
     fun verificarContrasena(password: CharArray): Boolean = try {
@@ -212,7 +218,9 @@ class VaultRepository private constructor(contexto: Context) {
     fun borrarTodo() {
         bloquear()
         archivoBoveda.delete()
-        biometria.eliminar()
+        desactivarBiometria()
+        // El registro de diagnóstico no lleva secretos, pero sí fechas de uso: se va con todo.
+        Diagnostico.borrar()
         _estado.value = EstadoBoveda.SinCrear
     }
 

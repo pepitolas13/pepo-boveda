@@ -2,14 +2,23 @@ package com.pepotech.pepoboveda.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.pepotech.pepoboveda.crypto.BiometricKeyStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+
+/** El modo de huella en uso, o null si está apagada. Única lectura de [AjustesApp.biometriaModo]. */
+val AjustesApp.modoBiometriaActivo: BiometricKeyStore.Modo?
+    get() = if (biometriaActiva) BiometricKeyStore.Modo.desde(biometriaModo) else null
 
 data class AjustesApp(
     val autoBloqueoSegundos: Int = 60,
     val portapapelesSegundos: Int = 30,
     val modoGrabacion: Boolean = false,
-    val biometriaActiva: Boolean = false
+    val biometriaActiva: Boolean = false,
+    /** "fuerte" (Clase 3 + Keystore atado), "compatible" (huella o PIN comprobados por Android) o "" si no hay. */
+    val biometriaModo: String = "",
+    /** "auto", "camerax" o "compatible": qué motor usa el escáner de QR. */
+    val motorCamara: String = "auto"
 )
 
 class AlmacenAjustes(contexto: Context) {
@@ -22,12 +31,20 @@ class AlmacenAjustes(contexto: Context) {
 
     val actual: AjustesApp get() = _ajustes.value
 
-    private fun leer() = AjustesApp(
-        autoBloqueoSegundos = prefs.getInt("auto_bloqueo", 60),
-        portapapelesSegundos = prefs.getInt("portapapeles", 30),
-        modoGrabacion = prefs.getBoolean("modo_grabacion", false),
-        biometriaActiva = prefs.getBoolean("biometria", false)
-    )
+    private fun leer(): AjustesApp {
+        val biometriaActiva = prefs.getBoolean("biometria", false)
+        var modo = prefs.getString("biometria_modo", "") ?: ""
+        // Quien activó la huella antes de existir los modos la tenía en el fuerte, el único que había.
+        if (biometriaActiva && modo.isEmpty()) modo = "fuerte"
+        return AjustesApp(
+            autoBloqueoSegundos = prefs.getInt("auto_bloqueo", 60),
+            portapapelesSegundos = prefs.getInt("portapapeles", 30),
+            modoGrabacion = prefs.getBoolean("modo_grabacion", false),
+            biometriaActiva = biometriaActiva,
+            biometriaModo = modo,
+            motorCamara = prefs.getString("motor_camara", "auto") ?: "auto"
+        )
+    }
 
     fun actualizar(bloque: (AjustesApp) -> AjustesApp) {
         val nuevo = bloque(_ajustes.value)
@@ -36,6 +53,8 @@ class AlmacenAjustes(contexto: Context) {
             .putInt("portapapeles", nuevo.portapapelesSegundos)
             .putBoolean("modo_grabacion", nuevo.modoGrabacion)
             .putBoolean("biometria", nuevo.biometriaActiva)
+            .putString("biometria_modo", nuevo.biometriaModo)
+            .putString("motor_camara", nuevo.motorCamara)
             .apply()
         _ajustes.value = nuevo
     }

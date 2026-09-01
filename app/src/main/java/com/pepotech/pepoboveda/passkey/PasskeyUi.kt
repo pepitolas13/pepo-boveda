@@ -21,7 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.ui.FlujoBiometria
 import com.pepotech.pepoboveda.ui.componentes.BotonAmbar
 import com.pepotech.pepoboveda.ui.componentes.BotonBorde
 import com.pepotech.pepoboveda.ui.componentes.CampoPepo
@@ -32,6 +35,7 @@ import com.pepotech.pepoboveda.ui.theme.Peligro
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
 import com.pepotech.pepoboveda.ui.theme.TextoSecundario
 import com.pepotech.pepoboveda.util.Biometria
+import com.pepotech.pepoboveda.util.Diagnostico
 import com.pepotech.pepoboveda.util.Haptica
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -54,47 +58,51 @@ fun HojaPasskey(
 ) {
     val haptica = remember { Haptica(actividad) }
     val ambito = rememberCoroutineScope()
+    val flujo = remember { FlujoBiometria(actividad, repositorio) }
     var abierta by remember { mutableStateOf(repositorio.estaDesbloqueada) }
     var contrasena by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var trabajando by remember { mutableStateOf(false) }
-    val biometriaLista = remember {
-        repositorio.ajustes.actual.biometriaActiva &&
-            repositorio.biometria.estaConfigurada &&
-            Biometria.disponible(actividad)
+
+    // Se pregunta al entrar y al volver, no se cachea para toda la hoja.
+    var biometriaLista by remember { mutableStateOf(false) }
+    var huellaDisponible by remember { mutableStateOf(false) }
+    LifecycleResumeEffect(Unit) {
+        // Una sola consulta al servicio de biometría para las dos preguntas.
+        val capacidad = flujo.capacidadActual()
+        biometriaLista = flujo.disponible(capacidad)
+        huellaDisponible = Biometria.decidirNivel(capacidad) != Biometria.Nivel.NINGUNO
+        onPauseOrDispose { }
     }
 
     var yaConfirmado by remember { mutableStateOf(false) }
-    val huellaDisponible = remember { Biometria.disponible(actividad) }
 
     val pedirBiometria: () -> Unit = {
-        val cipher = try {
-            repositorio.biometria.cipherParaDesenvolver()
-        } catch (e: Exception) {
-            error = "La biometría ya no vale. Usa la contraseña."
-            null
-        }
-        if (cipher != null) {
-            Biometria.autenticar(
-                actividad = actividad,
-                cipher = cipher,
-                titulo = "Pepo Bóveda",
-                subtitulo = "Desbloquea para usar tu passkey",
-                alExito = { cifrador ->
-                    try {
-                        val clave = repositorio.biometria.leerEnvuelta(cifrador)
-                        repositorio.desbloquearConClaveMaestra(clave)
-                        haptica.exito()
-                        // Esa huella ya vale como confirmacion: no te la pido dos veces.
-                        yaConfirmado = true
-                        abierta = true
-                    } catch (e: Exception) {
-                        error = "No se pudo abrir la bóveda con biometría"
-                    }
-                },
-                alFallar = { error = it }
-            )
-        }
+        error = null
+        flujo.desbloquear(
+            titulo = "Pepo Bóveda",
+            subtitulo = "Desbloquea para usar tu passkey",
+            alClave = { clave ->
+                try {
+                    repositorio.desbloquearConClaveMaestra(clave)
+                    haptica.exito()
+                    // Esa huella ya vale como confirmación: no te la pido dos veces.
+                    yaConfirmado = true
+                    abierta = true
+                } catch (e: Exception) {
+                    Diagnostico.apuntar("huella", "La clave desenvuelta no abrió la bóveda (passkey): ${e.javaClass.simpleName}")
+                    error = "No se pudo abrir la bóveda con la huella. Usa la contraseña."
+                } finally {
+                    // El repositorio guarda su propia copia: esta se borra aquí mismo.
+                    Zeroizar.borrar(clave)
+                }
+            },
+            alFallo = { fallo ->
+                if (fallo.cambiaDisponibilidad) biometriaLista = flujo.disponible()
+                error = fallo.texto
+            },
+            alIntentoFallido = { haptica.error() }
+        )
     }
 
     // Si hay huella, la pedimos sola en cuanto se abre la hoja: para eso está.
@@ -110,7 +118,7 @@ fun HojaPasskey(
     // Con la bóveda ya abierta, la huella es la confirmación: pones el dedo y
     // firma. No hace falta pasear por dentro de Pepo Bóveda para nada.
     var firmaLanzada by remember { mutableStateOf(false) }
-    LaunchedEffect(abierta, yaConfirmado) {
+    LaunchedEffect(abierta, yaConfirmado, huellaDisponible) {
         if (!abierta || firmaLanzada) return@LaunchedEffect
         when {
             yaConfirmado -> {
@@ -120,8 +128,7 @@ fun HojaPasskey(
             }
             huellaDisponible -> {
                 firmaLanzada = true
-                Biometria.confirmar(
-                    actividad = actividad,
+                flujo.confirmar(
                     titulo = titulo,
                     subtitulo = sitio,
                     alExito = {
@@ -129,10 +136,10 @@ fun HojaPasskey(
                         trabajando = true
                         alConfirmar()
                     },
-                    alFallar = {
+                    alFallo = { fallo ->
                         // Si cancelas, te queda el botón de siempre.
                         firmaLanzada = false
-                        error = it
+                        error = fallo.texto
                     }
                 )
             }
@@ -193,7 +200,7 @@ fun HojaPasskey(
                 }
                 if (biometriaLista) {
                     Spacer(Modifier.height(12.dp))
-                    BotonBorde(texto = "Usar la huella") { pedirBiometria() }
+                    BotonBorde(texto = flujo.etiquetaBoton()) { pedirBiometria() }
                 }
             } else {
                 error?.let {

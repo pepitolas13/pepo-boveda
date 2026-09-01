@@ -10,6 +10,7 @@ import com.pepotech.pepoboveda.data.Entrada
 import com.pepotech.pepoboveda.data.EstadoBoveda
 import com.pepotech.pepoboveda.data.TipoEntrada
 import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.util.Diagnostico
 import com.pepotech.pepoboveda.util.Portapapeles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -235,7 +236,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
                 irRaiz(Pantalla.Lista)
                 alTerminar(true)
             } catch (e: Exception) {
-                _error.value = "No se pudo abrir la bóveda con la biometría"
+                Diagnostico.apuntar("huella", "La clave desenvuelta no abrió la bóveda: ${e.javaClass.simpleName}")
+                _error.value = "No se pudo abrir la bóveda con la huella"
                 alTerminar(false)
             } finally {
                 Zeroizar.borrar(clave)
@@ -370,7 +372,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     fun ajustarModoGrabacion(activo: Boolean) = repositorio.ajustes.actualizar { it.copy(modoGrabacion = activo) }
 
-    fun ajustarBiometria(activa: Boolean) = repositorio.ajustes.actualizar { it.copy(biometriaActiva = activa) }
+    fun ajustarMotorCamara(clave: String) = repositorio.ajustes.actualizar { it.copy(motorCamara = clave) }
 
     /** Se pone a true justo al crear la bóveda, para ofrecer la huella sin pasar por Ajustes. */
     private val _ofrecerBiometria = MutableStateFlow(false)
@@ -448,6 +450,8 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 bloque()
             } catch (e: Exception) {
+                // Solo la clase: el mensaje de estas excepciones puede llevar rutas o contenido de la bóveda.
+                Diagnostico.apuntar("app", "Operación fallida: ${e.javaClass.simpleName}")
                 _error.value = e.message ?: "Algo salió mal"
             } finally {
                 _trabajando.value = false

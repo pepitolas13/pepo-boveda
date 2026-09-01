@@ -7,6 +7,9 @@
     <!-- Solo para leer el QR de un 2FA. Se pide al pulsar "Escanear", nunca al abrir la app. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- El permiso CAMERA da por exigido el autoenfoque si no se dice lo contrario. -->
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <!-- Las librerías de androidx cuelan estos dos. Fuera: la lista tiene que ser de dos. -->
     <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove" />
@@ -45,18 +48,21 @@
             android:name=".autofill.AutofillAuthActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.PepoBoveda.Transparent" />
 
         <activity
             android:name=".passkey.PasskeyCreateActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.PepoBoveda.Transparent" />
 
         <activity
             android:name=".passkey.PasskeyGetActivity"
             android:exported="false"
             android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@style/Theme.PepoBoveda.Transparent" />
 
         <service

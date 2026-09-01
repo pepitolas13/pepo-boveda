@@ -24,15 +24,32 @@ bóveda entera con **AES-256-GCM**.
   autenticada: no se puede editar para rebajar el coste del KDF sin que falle el tag.
 - Sal de 16 bytes y nonce de 12 bytes aleatorios, nuevos en cada escritura.
 - La bóveda es un único archivo en el almacenamiento privado de la app.
-- La biometría no sustituye a la contraseña: envuelve la clave maestra con una clave del
-  Android Keystore que exige Clase 3 en cada uso y se invalida si cambia la biometría
-  del dispositivo.
+- La huella no sustituye a la contraseña: envuelve la clave maestra con una clave AES del
+  Android Keystore. Hay dos modos, y la app te dice cuál tienes:
+  - **Fuerte** (el que se intenta siempre primero): la clave del Keystore exige huella de
+    Clase 3 en cada uso y se invalida si cambia la biometría del dispositivo.
+  - **Compatible** (solo si lo activas tú, con aviso): para móviles y ROMs donde la huella es
+    de Clase 2 o donde el Keystore rechaza la operación aunque Android dé la huella por
+    buena (error -26, típico de ROMs personalizadas). La clave sigue en el Keystore y no
+    sale del móvil, pero no exige autenticación del chip: la huella o el PIN los comprueba
+    Android y la app decide abrir. Es más débil, y por eso se explica antes de activarlo.
 
 ## Qué hay dentro
 
 Bóveda cifrada, generador con `SecureRandom` y medidor de entropía, autenticador TOTP
 (RFC 6238) con lector de QR mediante ZXing, servicio de autofill, proveedor de passkeys
 (WebAuthn/CBOR propio), exportar/importar cifrado y bloqueo automático por inactividad.
+
+El lector de QR tiene tres caminos para que no se quede nadie fuera: CameraX; si falla,
+un motor compatible con la API antigua de cámara (la que funciona hasta en los HAL más
+viejos); y siempre, leer el QR desde una imagen o captura, o escribir la clave a mano.
+El motor se puede forzar desde Ajustes.
+
+En Ajustes > Audítame hay un **diagnóstico local**: lo que Android dice de la huella y de
+la cámara de ese móvil y los últimos pasos que dio la app con ellas, con botón de copiar
+y compartir. No registra nada tuyo (ni claves, ni contraseñas, ni el contenido de ningún
+QR): solo qué paso se dio y qué excepción saltó. Es lo que necesito para arreglar un
+fallo en un móvil que no tengo.
 
 ## Compilar
 
@@ -67,8 +84,15 @@ Esto es importante y no lo voy a esconder:
   todos los fabricantes ni en todas las versiones de Android.
 - **Aquí es donde me vienes bien tú.** Si la pruebas y algo se rompe, me vendrá
   fenomenal que me lo digas: qué móvil, qué versión de Android, qué hiciste y qué pasó.
-  Un fallo que encuentres es un fallo que dejo de tener. Abre un issue sin miedo, y si
-  te sabes buscar la vida, mira el código y dime qué está mal.
+  Lo más útil es el informe de Ajustes > Audítame > "Copiar informe", que lleva justo eso
+  y ningún dato tuyo. Un fallo que encuentres es un fallo que dejo de tener. Abre un
+  issue sin miedo, y si te sabes buscar la vida, mira el código y dime qué está mal.
+- **El primer aviso de la gente ya está atendido.** En un Redmi 6 con DotOS (ROM
+  personalizada) no funcionaban ni la cámara del escáner ni la huella. No tengo ese
+  móvil, así que no lo he podido reproducir; lo que he hecho es que ninguno de los dos
+  pueda fallar en silencio: la cámara tiene motor de reserva y lectura desde imagen, la
+  huella tiene el modo compatible y explica exactamente por qué no puede usar el fuerte,
+  y todo queda apuntado en el diagnóstico para que el siguiente aviso venga con datos.
 - Sigue abierto: si Android no devuelve la firma de la app que pide una passkey, se
   firma igual en vez de abortar. Y el APK pesa ~44 MB porque incluye Argon2 para las
   cuatro ABI; con splits bajaría a unos 15 MB.

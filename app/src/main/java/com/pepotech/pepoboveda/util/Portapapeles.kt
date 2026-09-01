@@ -20,6 +20,12 @@ object Portapapeles {
         gestor.setPrimaryClip(datos)
     }
 
+    /** Para texto que no es secreto (un informe de diagnóstico): sin marca sensible ni borrado. */
+    fun copiar(contexto: Context, etiqueta: String, valor: String) {
+        val gestor = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        gestor.setPrimaryClip(ClipData.newPlainText(etiqueta, valor))
+    }
+
     fun limpiarSiCoincide(contexto: Context, valor: String) {
         val gestor = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val actual = gestor.primaryClip
