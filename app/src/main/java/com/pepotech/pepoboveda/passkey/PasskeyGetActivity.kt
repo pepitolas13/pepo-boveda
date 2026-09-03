@@ -47,6 +47,12 @@ class PasskeyGetActivity : FragmentActivity() {
             fallar("Petición de passkey ilegible")
             return
         }
+        // Mismo filtro que al crear: sin sitio y sin reto no hay nada que firmar, y
+        // firmar un reto vacío es firmar lo que quiera quien pregunte.
+        if (datos.rpId.isBlank() || datos.reto.isBlank()) {
+            fallar("La petición no trae ni sitio ni reto")
+            return
+        }
         val entradaId = intent.getStringExtra(PepoCredentialProviderService.EXTRA_ENTRADA_ID)
 
         setContent {
