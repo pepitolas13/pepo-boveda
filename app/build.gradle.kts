@@ -23,8 +23,8 @@ android {
         applicationId = "com.pepotech.pepoboveda"
         minSdk = 29
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.77-beta"
+        versionCode = 10
+        versionName = "0.78-beta"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -45,7 +45,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             isDebuggable = false
             isJniDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
