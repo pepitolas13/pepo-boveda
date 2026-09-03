@@ -8,6 +8,7 @@ import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.data.AjustesApp
 import com.pepotech.pepoboveda.data.Entrada
 import com.pepotech.pepoboveda.data.EstadoBoveda
+import com.pepotech.pepoboveda.data.FrenoIntentos
 import com.pepotech.pepoboveda.data.TipoEntrada
 import com.pepotech.pepoboveda.data.VaultRepository
 import com.pepotech.pepoboveda.util.Diagnostico
@@ -109,27 +110,17 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------- freno a los intentos de clave
 
-    private var intentosFallidos = 0
-    private var bloqueadoHasta = 0L
+    // El contador vive en disco (ver FrenoIntentos): antes eran dos campos de aquí y
+    // cerrar la app desde recientes lo reseteaba, que es justo lo que haría alguien
+    // probando claves a mano.
+    private val contextoApp: Application get() = getApplication()
 
     /** Segundos que faltan para poder volver a probar. 0 si se puede probar ya. */
-    fun esperaPorIntentos(): Long {
-        val restante = bloqueadoHasta - System.currentTimeMillis()
-        return if (restante > 0) (restante / 1000) + 1 else 0
-    }
+    fun esperaPorIntentos(): Long = FrenoIntentos.esperaSegundos(contextoApp)
 
-    private fun apuntarFallo() {
-        intentosFallidos++
-        if (intentosFallidos >= 5) {
-            val castigo = minOf(300L, 5L * (1L shl minOf(6, intentosFallidos - 5)))
-            bloqueadoHasta = System.currentTimeMillis() + castigo * 1000L
-        }
-    }
+    private fun apuntarFallo() = FrenoIntentos.apuntarFallo(contextoApp)
 
-    private fun limpiarFallos() {
-        intentosFallidos = 0
-        bloqueadoHasta = 0L
-    }
+    private fun limpiarFallos() = FrenoIntentos.limpiar(contextoApp)
 
     // ------------------------------------- bloqueo por inactividad en pantalla
 
