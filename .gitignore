@@ -7,6 +7,8 @@ keystore.properties
 *.keystore.*
 *.p12
 *.pepk
+*.pem
+*.pk8
 
 # --- Rutas y ajustes de esta máquina ---
 local.properties
