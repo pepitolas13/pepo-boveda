@@ -64,6 +64,12 @@ class VaultRepository private constructor(contexto: Context) {
         val nuevoSalt = VaultCrypto.nuevoSalt()
         val clave = VaultCrypto.derivarClave(password, nuevoSalt, KdfParams.PREDETERMINADOS)
         val instantanea = synchronized(candado) {
+            if (claveMaestra != null) {
+                // Ya hay una bóveda abierta (doble toque en crear, o una carrera con
+                // el desbloqueo). Crear encima la vaciaría entera.
+                Zeroizar.borrar(clave)
+                return
+            }
             salt = nuevoSalt
             params = KdfParams.PREDETERMINADOS
             claveMaestra = clave
@@ -91,6 +97,17 @@ class VaultRepository private constructor(contexto: Context) {
         val leido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
         val instantanea = synchronized(candado) {
+            if (claveMaestra != null) {
+                // Alguien ha abierto la bóveda mientras derivábamos: otra pantalla, el
+                // autorrelleno o la huella. Su estado es más nuevo que el nuestro, que
+                // salió del archivo ANTES del Argon2, asi que pisarlo se llevaría por
+                // delante lo que hayan guardado entre medias. La bóveda esta abierta,
+                // que es lo que pedía quien llama, asi que esto no es un fallo.
+                // La clave recien derivada se borra aqui: si no, se queda una clave
+                // maestra suelta en el heap hasta que pase el recolector.
+                Zeroizar.borrar(clave)
+                return
+            }
             salt = cabecera.salt
             params = cabecera.params
             claveMaestra = clave
@@ -107,6 +124,9 @@ class VaultRepository private constructor(contexto: Context) {
         val leido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
         val instantanea = synchronized(candado) {
+            // Misma guarda que en desbloquear(): aqui no hay Argon2, pero leer y
+            // descifrar el archivo tampoco es instantaneo y la carrera es la misma.
+            if (claveMaestra != null) return
             salt = cabecera.salt
             params = cabecera.params
             claveMaestra = clave.copyOf()
