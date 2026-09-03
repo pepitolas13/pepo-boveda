@@ -1,5 +1,6 @@
 # --- NUNCA subir: firma de la app ---
 # Si esto se filtra, cualquiera puede publicar APKs que Android considere tuyos.
+# NUNCA git add -f estos archivos. Regenera keystore.properties desde .ejemplo.
 keystore.properties
 *.jks
 *.jks.*
@@ -7,6 +8,8 @@ keystore.properties
 *.keystore.*
 *.p12
 *.pepk
+*.pem
+*.pk8
 
 # --- Rutas y ajustes de esta máquina ---
 local.properties

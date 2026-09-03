@@ -61,11 +61,11 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
     var tipo by remember { mutableStateOf(original?.tipo ?: TipoEntrada.LOGIN) }
     var titulo by remember { mutableStateOf(original?.titulo ?: "") }
     var usuario by remember { mutableStateOf(original?.usuario ?: "") }
-    var contrasena by remember { mutableStateOf(original?.contrasena ?: contrasenaInicial) }
+    var contrasena by remember { mutableStateOf(original?.contrasena?.let { String(it, Charsets.UTF_8) } ?: contrasenaInicial) }
     var mostrarContrasena by remember { mutableStateOf(false) }
     var urls by remember { mutableStateOf(original?.urls?.joinToString(", ") ?: "") }
     var notas by remember { mutableStateOf(original?.notas ?: "") }
-    var totp by remember { mutableStateOf(original?.secretoTotp ?: "") }
+    var totp by remember { mutableStateOf(original?.secretoTotp?.let { Base32.codificar(it) } ?: "") }
     var favorito by remember { mutableStateOf(original?.favorito ?: false) }
 
     val totpValido = totp.isBlank() || Base32.esValido(totp)
@@ -186,15 +186,16 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
         Spacer(Modifier.height(20.dp))
         BotonAmbar(if (original == null) "Guardar en la bóveda" else "Guardar cambios", activo = puedeGuardar) {
             haptica.exito()
+            val contrasenaBytes = contrasena.toByteArray(Charsets.UTF_8)
             val entrada = Entrada(
                 id = original?.id ?: vm.nuevoId(),
                 tipo = original?.passkey?.let { TipoEntrada.PASSKEY } ?: tipo,
                 titulo = titulo.trim(),
                 usuario = usuario.trim(),
-                contrasena = contrasena,
+                contrasena = contrasenaBytes,
                 urls = urls.split(",").map { it.trim() }.filter { it.isNotEmpty() },
                 notas = notas,
-                secretoTotp = totp.trim().ifBlank { null },
+                secretoTotp = totp.trim().ifBlank { null }?.let { Base32.decodificar(it) },
                 favorito = favorito,
                 creadaEn = original?.creadaEn ?: 0L,
                 passkey = original?.passkey

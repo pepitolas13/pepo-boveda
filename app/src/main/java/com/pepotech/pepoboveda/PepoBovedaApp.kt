@@ -3,26 +3,23 @@ package com.pepotech.pepoboveda
 import android.app.Activity
 import android.app.Application
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import com.pepotech.pepoboveda.data.VaultRepository
 import com.pepotech.pepoboveda.util.Diagnostico
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicInteger
 
 class PepoBovedaApp : Application(), Application.ActivityLifecycleCallbacks {
 
     companion object {
-        /** Tope de la excepción al bloqueo mientras un selector está abierto. */
+        private const val TAG = "PepoBovedaApp"
         private const val MAX_SALIDA_PENDIENTE_MS = 2 * 60_000L
+        private const val HASH_FIRMA_ESPERADO = ""
 
-        /**
-         * Vamos a abrir un selector del sistema (una imagen, un archivo) del que volveremos
-         * con un resultado: esa salida no debe cerrar la bóveda aunque el ajuste sea "Al
-         * cerrar la app", porque al volver con la imagen la bóveda estaría bloqueada y el
-         * alta fallaría. Hay que emparejarla SIEMPRE con [salidaTerminada] en el callback
-         * del resultado (y en el catch si el lanzamiento falla). Caduca sola a los dos
-         * minutos por si algo se pierde; a partir de ahí el bloqueo vuelve a mandar.
-         */
         fun salidaPendiente(contexto: Context) {
             (contexto.applicationContext as? PepoBovedaApp)?.salidaPendiente()
         }
@@ -34,20 +31,58 @@ class PepoBovedaApp : Application(), Application.ActivityLifecycleCallbacks {
 
     private var actividadesVisibles = 0
     private var momentoAlFondo = 0L
-
     private val salidasPendientes = AtomicInteger(0)
-
-    @Volatile
-    private var salidaCaducaEn = 0L
+    @Volatile private var salidaCaducaEn = 0L
+    private var integridadVerificada = false
 
     override fun onCreate() {
         super.onCreate()
         Diagnostico.iniciar(File(filesDir, "diagnostico.log"))
         VaultRepository.obtener(this)
         registerActivityLifecycleCallbacks(this)
+        verificarIntegridad()
+        
+        if (com.pepotech.pepoboveda.util.SeguridadApp.estaComprometido(this)) {
+            Diagnostico.apuntar("seguridad", "Entorno no seguro detectado")
+        }
     }
 
     private val repositorio: VaultRepository get() = VaultRepository.obtener(this)
+
+    private fun verificarIntegridad() {
+        if (integridadVerificada) return
+        try {
+            val paquete = packageName
+            val info = packageManager.getPackageInfo(
+                paquete,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    PackageManager.GET_SIGNING_CERTIFICATES
+                } else {
+                    @Suppress("DEPRECATION")
+                    PackageManager.GET_SIGNATURES
+                }
+            )
+            val sig = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+            } else {
+                @Suppress("DEPRECATION")
+                info.signatures?.firstOrNull()?.toByteArray()
+            }
+            if (sig != null) {
+                val hash = MessageDigest.getInstance("SHA-256").digest(sig)
+                val hashB64 = android.util.Base64.encodeToString(hash, android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE)
+                if (hashB64 != HASH_FIRMA_ESPERADO && !esDebug()) {
+                    Diagnostico.apuntar("seguridad", "Firma de APT modificada")
+                }
+            }
+        } catch (e: Exception) {
+            Diagnostico.apuntar("seguridad", "No se pudo verificar integridad: ${e.javaClass.simpleName}")
+        } finally {
+            integridadVerificada = true
+        }
+    }
+
+    private fun esDebug(): Boolean = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
 
     fun salidaPendiente() {
         salidasPendientes.incrementAndGet()

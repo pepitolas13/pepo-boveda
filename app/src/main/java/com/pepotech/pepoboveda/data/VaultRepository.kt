@@ -1,6 +1,7 @@
 package com.pepotech.pepoboveda.data
 
 import android.content.Context
+import android.util.Log
 import com.pepotech.pepoboveda.crypto.BiometricKeyStore
 import com.pepotech.pepoboveda.crypto.KdfParams
 import com.pepotech.pepoboveda.crypto.VaultCrypto
@@ -8,11 +9,34 @@ import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.util.Diagnostico
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.UUID
 
 class VaultRepository private constructor(contexto: Context) {
+
+    companion object {
+        private const val TAG = "VaultRepository"
+
+        @Volatile
+        private var instancia: VaultRepository? = null
+
+        fun obtener(contexto: Context): VaultRepository =
+            instancia ?: synchronized(this) {
+                instancia ?: try {
+                    Log.w(TAG, "REPO crear instancia start")
+                    VaultRepository(contexto.applicationContext).also {
+                        Log.w(TAG, "REPO crear instancia end")
+                        instancia = it
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "REPO crear instancia failed", e)
+                    throw e
+                }
+            }
+    }
 
     private val app = contexto.applicationContext
 
@@ -22,6 +46,7 @@ class VaultRepository private constructor(contexto: Context) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
+    private val mutex = Mutex()
     private var claveMaestra: ByteArray? = null
     private var salt: ByteArray = ByteArray(VaultCrypto.TAM_SALT)
     private var params: KdfParams = KdfParams.PREDETERMINADOS
@@ -41,6 +66,7 @@ class VaultRepository private constructor(contexto: Context) {
 
     // ---------------------------------------------------------------- creación
 
+    @Synchronized
     fun crear(password: CharArray) {
         val nuevoSalt = VaultCrypto.nuevoSalt()
         val clave = VaultCrypto.derivarClave(password, nuevoSalt, KdfParams.PREDETERMINADOS)
@@ -54,6 +80,7 @@ class VaultRepository private constructor(contexto: Context) {
 
     // ------------------------------------------------------------- desbloqueo
 
+    @Synchronized
     fun desbloquear(password: CharArray) {
         val bytes = archivoBoveda.readBytes()
         val cabecera = VaultCrypto.leerCabecera(bytes)
@@ -72,6 +99,7 @@ class VaultRepository private constructor(contexto: Context) {
         publicar()
     }
 
+    @Synchronized
     fun desbloquearConClaveMaestra(clave: ByteArray) {
         val bytes = archivoBoveda.readBytes()
         val cabecera = VaultCrypto.leerCabecera(bytes)
@@ -84,7 +112,9 @@ class VaultRepository private constructor(contexto: Context) {
         publicar()
     }
 
+    @Synchronized
     fun bloquear() {
+        contenido.entradas.forEach { it.limpiar() }
         Zeroizar.borrar(claveMaestra)
         claveMaestra = null
         contenido = ContenidoBoveda()
@@ -99,6 +129,7 @@ class VaultRepository private constructor(contexto: Context) {
 
     fun nuevoId(): String = UUID.randomUUID().toString()
 
+    @Synchronized
     fun guardarEntrada(entrada: Entrada) {
         val ahora = System.currentTimeMillis()
         val existente = contenido.entradas.indexOfFirst { it.id == entrada.id }
@@ -113,7 +144,12 @@ class VaultRepository private constructor(contexto: Context) {
         publicar()
     }
 
+    @Synchronized
     fun eliminarEntrada(id: String) {
+        val entrada = contenido.entradas.firstOrNull { it.id == id }
+        if (entrada != null) {
+            entrada.passkey?.limpiar()
+        }
         contenido = contenido.copy(entradas = contenido.entradas.filterNot { it.id == id })
         persistir()
         publicar()
@@ -145,18 +181,20 @@ class VaultRepository private constructor(contexto: Context) {
 
     // ------------------------------------------------ exportación e importación
 
+    @Synchronized
     fun exportar(passwordExportacion: CharArray): ByteArray {
         if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
         val saltExport = VaultCrypto.nuevoSalt()
-        val clave = VaultCrypto.derivarClave(passwordExportacion, saltExport, KdfParams.PREDETERMINADOS)
+        val clave = VaultCrypto.derivarClave(passwordExportacion, saltExport, params)
         val plano = json.encodeToString(ContenidoBoveda.serializer(), contenido).toByteArray(Charsets.UTF_8)
-        val salida = VaultCrypto.cifrar(plano, clave, saltExport, KdfParams.PREDETERMINADOS)
+        val salida = VaultCrypto.cifrar(plano, clave, saltExport, params)
         Zeroizar.borrar(plano)
         Zeroizar.borrar(clave)
         return salida
     }
 
     /** Devuelve el número de entradas importadas (fusiona por id). */
+    @Synchronized
     fun importar(archivo: ByteArray, passwordExportacion: CharArray): Int {
         if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
         val cabecera = VaultCrypto.leerCabecera(archivo)
@@ -166,6 +204,9 @@ class VaultRepository private constructor(contexto: Context) {
         } finally {
             Zeroizar.borrar(clave)
         }
+        // Nota de seguridad: String(plano, Charsets.UTF_8) crea un String inmutable
+        // que no se puede zeroizar. El ByteArray `plano` se zeroiza en finally.
+        // El String intermedio vive en el heap hasta que GC lo recoja.
         val importado = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
         val porId = contenido.entradas.associateBy { it.id }.toMutableMap()
@@ -183,6 +224,7 @@ class VaultRepository private constructor(contexto: Context) {
         return nuevas
     }
 
+    @Synchronized
     fun cambiarContrasenaMaestra(nueva: CharArray) {
         if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
         val nuevoSalt = VaultCrypto.nuevoSalt()
@@ -215,22 +257,13 @@ class VaultRepository private constructor(contexto: Context) {
         false
     }
 
+    @Synchronized
     fun borrarTodo() {
+        contenido.entradas.forEach { it.limpiar() }
         bloquear()
         archivoBoveda.delete()
         desactivarBiometria()
-        // El registro de diagnóstico no lleva secretos, pero sí fechas de uso: se va con todo.
         Diagnostico.borrar()
         _estado.value = EstadoBoveda.SinCrear
-    }
-
-    companion object {
-        @Volatile
-        private var instancia: VaultRepository? = null
-
-        fun obtener(contexto: Context): VaultRepository =
-            instancia ?: synchronized(this) {
-                instancia ?: VaultRepository(contexto).also { instancia = it }
-            }
     }
 }

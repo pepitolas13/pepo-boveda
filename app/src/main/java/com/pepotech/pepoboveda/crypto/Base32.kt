@@ -30,6 +30,14 @@ object Base32 {
         return salida.toByteArray()
     }
 
+    /**
+     * Codifica [bytes] en Base32.
+     *
+     * Nota de seguridad: el String resultante es inmutable y no se puede
+     * zeroizar. El caller es responsable de no almacenar el resultado en
+     * campos que deban ser zeroizados. El buffer interno (Int primitivo)
+     * se limpia automáticamente al salir del método.
+     */
     fun codificar(bytes: ByteArray): String {
         val sb = StringBuilder()
         var buffer = 0

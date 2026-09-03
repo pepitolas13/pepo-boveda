@@ -16,6 +16,7 @@ import androidx.credentials.provider.ProviderGetCredentialRequest
 import androidx.fragment.app.FragmentActivity
 import com.pepotech.pepoboveda.data.Entrada
 import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
 
 /** Confirma y firma una aserción con una passkey ya guardada. */
@@ -83,16 +84,26 @@ class PasskeyGetActivity : FragmentActivity() {
                 fallar("No hay ninguna passkey guardada para ${datos.rpId}")
                 return
             }
-            val info = peticion?.callingAppInfo
-            val origen = if (info != null) Origen.deApp(info.packageName, info.signingInfo) else Origen.deWeb(datos.rpId)
+        val info = peticion?.callingAppInfo
+        val paqueteLlamante = info?.packageName
+        if (!VerificarLlamante.esLlamanteValido(this, paqueteLlamante)) {
+            fallar("Llamante no autorizado para passkeys")
+            return
+        }
+        val origen = if (info != null) Origen.deApp(info.packageName, info.signingInfo) else Origen.deWeb(datos.rpId)
             val clientData = WebAuthn.clientDataJson("webauthn.get", datos.reto, origen)
             val authData = WebAuthn.authenticatorDataAsercion(datos.rpId, 0)
-            // Si quien pide es un navegador privilegiado, el hash lo trae él.
             val hashCliente = opcionPeticion?.clientDataHash ?: WebAuthn.sha256(clientData)
-            val firma = WebAuthn.firmar(
-                WebAuthn.deB64Url(passkey.clavePrivada),
-                authData + hashCliente
-            )
+            val pkcs8 = passkey.clavePrivada.copyOf()
+            val firma = try {
+                WebAuthn.firmar(
+                    pkcs8,
+                    authData + hashCliente
+                )
+            } finally {
+                Zeroizar.borrar(pkcs8)
+            }
+            passkey.limpiar()
             val json = WebAuthn.respuestaAsercion(
                 credId = WebAuthn.deB64Url(passkey.credId),
                 clientData = clientData,

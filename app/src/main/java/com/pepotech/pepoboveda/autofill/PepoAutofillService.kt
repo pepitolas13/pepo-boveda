@@ -1,6 +1,7 @@
 package com.pepotech.pepoboveda.autofill
 
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.os.CancellationSignal
 import android.service.autofill.AutofillService
@@ -23,6 +24,34 @@ class PepoAutofillService : AutofillService() {
         const val EXTRA_CONTRASENA_ID = "pepo.contrasena.id"
         const val EXTRA_PAQUETE = "pepo.paquete"
         const val EXTRA_DOMINIO = "pepo.dominio"
+        private const val MAX_INTENTOS_AUTOFILL = 5
+    }
+
+    private fun prefsAutofill() = getSharedPreferences("autofill_rate_limit_pepo_boveda", Context.MODE_PRIVATE)
+
+    private fun estaAutofillDisponible(): Boolean {
+        val prefs = prefsAutofill()
+        val bloqueadoHasta = prefs.getLong("autofill_bloqueado_hasta", 0L)
+        return bloqueadoHasta <= System.currentTimeMillis()
+    }
+
+    private fun registrarIntentoAutofill() {
+        val prefs = prefsAutofill()
+        val intentos = prefs.getInt("autofill_intentos", 0) + 1
+        val editor = prefs.edit()
+        if (intentos >= MAX_INTENTOS_AUTOFILL) {
+            val castigo = minOf(300L, 5L * (1L shl minOf(6, intentos - MAX_INTENTOS_AUTOFILL)))
+            editor.putLong("autofill_bloqueado_hasta", System.currentTimeMillis() + castigo * 1000L)
+        }
+        editor.putInt("autofill_intentos", intentos)
+        editor.apply()
+    }
+
+    private fun limpiarAutofill() {
+        prefsAutofill().edit()
+            .remove("autofill_intentos")
+            .remove("autofill_bloqueado_hasta")
+            .apply()
     }
 
     override fun onFillRequest(
@@ -43,10 +72,13 @@ class PepoAutofillService : AutofillService() {
         }
         val paquete = estructura.activityComponent?.packageName ?: ""
         val repositorio = VaultRepository.obtener(this)
-        val respuesta = FillResponse.Builder()
-        val ids: Array<AutofillId> = listOfNotNull(campos.usuario, campos.contrasena).toTypedArray()
 
         if (!repositorio.estaDesbloqueada) {
+            if (!estaAutofillDisponible()) {
+                callback.onFailure("Demasiados intentos. Intenta más tarde.")
+                registrarIntentoAutofill()
+                return
+            }
             val intent = Intent(this, AutofillAuthActivity::class.java).apply {
                 putExtra(EXTRA_USUARIO_ID, campos.usuario)
                 putExtra(EXTRA_CONTRASENA_ID, campos.contrasena)
@@ -57,18 +89,24 @@ class PepoAutofillService : AutofillService() {
                 this,
                 1001,
                 intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
+            val respuesta = FillResponse.Builder()
+            val ids: Array<AutofillId> = listOfNotNull(campos.usuario, campos.contrasena).toTypedArray()
             respuesta.setAuthentication(
                 ids,
                 pendiente.intentSender,
                 AutofillUtiles.presentacion(this, "Pepo Bóveda está cerrada", "Toca para desbloquearla")
             )
-        } else {
-            val compatibles = AutofillUtiles.entradasCompatibles(repositorio.entradas(), paquete, campos.dominioWeb)
-            compatibles.forEach { entrada ->
-                AutofillUtiles.dataset(this, entrada, campos)?.let { respuesta.addDataset(it) }
-            }
+            callback.onSuccess(respuesta.build())
+            return
+        }
+
+        val respuesta = FillResponse.Builder()
+        val ids: Array<AutofillId> = listOfNotNull(campos.usuario, campos.contrasena).toTypedArray()
+        val compatibles = AutofillUtiles.entradasCompatibles(repositorio.entradas(), paquete, campos.dominioWeb)
+        compatibles.forEach { entrada ->
+            AutofillUtiles.dataset(this, entrada, campos)?.let { respuesta.addDataset(it) }
         }
 
         if (ids.isNotEmpty()) {
@@ -80,6 +118,7 @@ class PepoAutofillService : AutofillService() {
             )
         }
 
+        limpiarAutofill()
         callback.onSuccess(respuesta.build())
     }
 
@@ -111,12 +150,13 @@ class PepoAutofillService : AutofillService() {
         val existente = repositorio.entradas().firstOrNull { entrada ->
             entrada.usuario == (usuario ?: "") && entrada.urls.any { Dominios.coincide(it, objetivo) }
         }
-        val entrada = existente?.copy(contrasena = contrasena) ?: Entrada(
+        val contrasenaBytes = contrasena?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
+        val entrada = existente?.copy(contrasena = contrasenaBytes) ?: Entrada(
             id = repositorio.nuevoId(),
             tipo = TipoEntrada.LOGIN,
             titulo = titulo.ifBlank { "Nueva entrada" },
             usuario = usuario ?: "",
-            contrasena = contrasena,
+            contrasena = contrasenaBytes,
             urls = listOf(objetivo)
         )
         try {

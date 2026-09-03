@@ -51,9 +51,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pepotech.pepoboveda.data.Entrada
 import com.pepotech.pepoboveda.data.EstadoBoveda
 import com.pepotech.pepoboveda.data.TipoEntrada
+import com.pepotech.pepoboveda.data.isNullOrEmpty
 import com.pepotech.pepoboveda.ui.Pantalla
 import com.pepotech.pepoboveda.ui.VaultViewModel
-import com.pepotech.pepoboveda.crypto.Base32
 import com.pepotech.pepoboveda.crypto.Totp
 import com.pepotech.pepoboveda.ui.componentes.AnilloTotp
 import com.pepotech.pepoboveda.ui.componentes.CampoPepo
@@ -135,7 +135,7 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                 ChipFiltro("Claves", filtro == TipoEntrada.LOGIN) { vm.filtrarPorTipo(if (filtro == TipoEntrada.LOGIN) null else TipoEntrada.LOGIN) }
                 ChipFiltro("Passkeys", filtro == TipoEntrada.PASSKEY) { vm.filtrarPorTipo(if (filtro == TipoEntrada.PASSKEY) null else TipoEntrada.PASSKEY) }
                 ChipFiltro("Notas", filtro == TipoEntrada.NOTA) { vm.filtrarPorTipo(if (filtro == TipoEntrada.NOTA) null else TipoEntrada.NOTA) }
-                ChipFiltro("â~.", soloFavoritos) { vm.alternarSoloFavoritos() }
+                ChipFiltro("ï¿½~.", soloFavoritos) { vm.alternarSoloFavoritos() }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -164,20 +164,20 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                 ) {
                     // Orden fijo: primero lo que caduca en 30 segundos, luego claves,
                     // luego passkeys y notas.
-                    val conDobleFactor = visibles.filter { !it.secretoTotp.isNullOrBlank() }
+                    val conDobleFactor = visibles.filter { !it.secretoTotp.isNullOrEmpty() }
                     val claves = visibles.filter {
-                        it.secretoTotp.isNullOrBlank() && it.tipo == TipoEntrada.LOGIN
+                        it.secretoTotp.isNullOrEmpty() && it.tipo == TipoEntrada.LOGIN
                     }
                     val passkeys = visibles.filter {
-                        it.secretoTotp.isNullOrBlank() && it.tipo == TipoEntrada.PASSKEY
+                        it.secretoTotp.isNullOrEmpty() && it.tipo == TipoEntrada.PASSKEY
                     }
                     val notas = visibles.filter {
-                        it.secretoTotp.isNullOrBlank() && it.tipo == TipoEntrada.NOTA
+                        it.secretoTotp.isNullOrEmpty() && it.tipo == TipoEntrada.NOTA
                     }
 
                     listOf(
                         "Doble factor" to conDobleFactor,
-                        "Contraseñas" to claves,
+                        "Contraseï¿½as" to claves,
                         "Llaves de acceso" to passkeys,
                         "Notas" to notas
                     ).forEach { (titulo, grupo) ->
@@ -200,12 +200,12 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                             },
                             alCopiarContrasena = {
                                 haptica.exito()
-                                vm.copiar("ContraseÃ±a", entrada.contrasena, sensible = true)
+                                vm.copiar("ContraseÃ±a", String(entrada.contrasena, Charsets.UTF_8), sensible = true)
                             },
                             alFavorito = { haptica.tic(); vm.alternarFavorito(entrada.id) },
                             alCopiarCodigo = { codigo ->
                                 haptica.exito()
-                                vm.copiar("Código", codigo, sensible = true)
+                                vm.copiar("Cï¿½digo", codigo, sensible = true)
                             }
                         )
                         }
@@ -317,7 +317,7 @@ private fun FilaEntrada(
                 )
             }
             val secreto = entrada.secretoTotp
-            if (!secreto.isNullOrBlank()) {
+            if (secreto != null && secreto.isNotEmpty()) {
                 var ahora by remember { mutableStateOf(System.currentTimeMillis() / 1000) }
                 LaunchedEffect(secreto) {
                     while (true) {
@@ -329,7 +329,7 @@ private fun FilaEntrada(
                 val codigo = remember(ahora / periodo, secreto) {
                     try {
                         Totp.codigo(
-                            secreto = Base32.decodificar(secreto),
+                            secreto = secreto,
                             segundosUnix = ahora,
                             digitos = entrada.totpDigitos,
                             periodo = periodo

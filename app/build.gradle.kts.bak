@@ -45,7 +45,7 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             isDebuggable = false
             isJniDebuggable = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -96,9 +96,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.biometric:biometric:1.1.0")
-
-    releaseImplementation("androidx.credentials:credentials:1.5.0")
-    debugImplementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials:1.5.0")
 
     // Cámara solo para leer QR de 2FA. ZXing es Java puro: no habla con ninguna red.
     implementation("androidx.camera:camera-core:1.4.2")

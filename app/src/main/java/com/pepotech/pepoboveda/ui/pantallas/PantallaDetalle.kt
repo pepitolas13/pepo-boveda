@@ -124,13 +124,14 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
             Spacer(Modifier.height(12.dp))
         }
 
-        if (entrada.contrasena.isNotBlank()) {
+        val textoContrasena = String(entrada.contrasena, Charsets.UTF_8)
+        if (textoContrasena.isNotBlank()) {
             TarjetaPepo {
                 EtiquetaSeccion("Contraseña")
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = contrasenaColoreada(entrada.contrasena),
+                        text = contrasenaColoreada(textoContrasena),
                         style = EstiloMono,
                         modifier = Modifier
                             .weight(1f)
@@ -142,7 +143,7 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
                     )
                     BotonCopiar(copiado = ultimaCopia == "contrasena") {
                         haptica.exito()
-                        vm.copiar("Contraseña", entrada.contrasena, sensible = true)
+                        vm.copiar("Contraseña", textoContrasena, sensible = true)
                         ultimaCopia = "contrasena"
                     }
                 }
@@ -156,7 +157,7 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
             Spacer(Modifier.height(12.dp))
         }
 
-        entrada.secretoTotp?.takeIf { it.isNotBlank() }?.let { secreto ->
+        entrada.secretoTotp?.takeIf { it.isNotEmpty() }?.let { secreto ->
             var ahora by remember { mutableLongStateOf(System.currentTimeMillis() / 1000) }
             LaunchedEffect(secreto) {
                 while (true) {
@@ -166,7 +167,7 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
             }
             val codigo = remember(ahora / Totp.PERIODO_SEGUNDOS, secreto) {
                 try {
-                    Totp.codigoDesdeBase32(secreto, ahora)
+                    Totp.codigo(secreto, ahora)
                 } catch (e: Exception) {
                     "------"
                 }

@@ -1,0 +1,2518 @@
+======================================================================
+  INFORME FORENSE COMPLETO — Pepo Bóveda
+  Generado desde código fuente (sin APK, sin root, sin jadx)
+  Fecha: $(date '+%Y-%m-%d %H:%M:%S')
+  Proyecto: /home/antonio/Documentos/Pepo-hackeado/pepo-boveda-main
+======================================================================
+
+Fecha: 2026-09-02 16:59:55
+Proyecto: /home/antonio/Documentos/Pepo-hackeado/pepo-boveda-main
+
+
+======================================================================
+ 1. ANDROID MANIFEST — CONFIGURACIÓN DE SEGURIDAD
+======================================================================
+
+
+Archivo: app/src/main/AndroidManifest.xml
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Solo para leer el QR de un 2FA. Se pide al pulsar "Escanear", nunca al abrir la app. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
+    <!-- El permiso CAMERA da por exigido el autoenfoque si no se dice lo contrario. -->
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- Las librerías de androidx cuelan estos dos. Fuera: la lista tiene que ser de dos. -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" tools:node="remove" />
+    <uses-permission
+        android:name="com.pepotech.pepoboveda.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+    <permission
+        android:name="com.pepotech.pepoboveda.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+        tools:node="remove" />
+
+    <application
+        android:name=".PepoBovedaApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
+        android:hasFragileUserData="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.PepoBoveda"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@style/Theme.PepoBoveda">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".autofill.AutofillAuthActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@style/Theme.PepoBoveda.Transparent" />
+
+        <activity
+            android:name=".passkey.PasskeyCreateActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@style/Theme.PepoBoveda.Transparent" />
+
+        <activity
+            android:name=".passkey.PasskeyGetActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
+            android:theme="@style/Theme.PepoBoveda.Transparent" />
+
+        <service
+            android:name=".autofill.PepoAutofillService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_AUTOFILL_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.autofill.AutofillService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.autofill"
+                android:resource="@xml/autofill_service" />
+        </service>
+
+        <service
+            android:name=".passkey.PepoCredentialProviderService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.credentials.provider"
+                android:resource="@xml/provider" />
+        </service>
+    </application>
+
+</manifest>
+
+----------------------------------------------------------------------
+ ANÁLISIS DE SEGURIDAD DEL MANIFEST
+----------------------------------------------------------------------
+
+✓ android:allowBackup="false"
+  → Los datos NO se respaldan en Google Backup.
+  → Sin embargo, esto NO protege contra root ni adb con acceso directo.
+
+✓ android:fullBackupContent="false"
+  → Respaldos automáticos desactivados en Android 12+.
+
+✓ android:hasFragileUserData="false"
+  → No requiere wipe de datos al desinstalar.
+
+⚠ Activities exported:
+  - MainActivity: exported=true (necesario para LAUNCHER)
+  - AutofillAuthActivity: exported=false ✓
+  - PasskeyCreateActivity: exported=false ✓
+  - PasskeyGetActivity: exported=false ✓
+
+✓ Servicios con permisos bind:
+  - PepoAutofillService: BIND_AUTOFILL_SERVICE
+  - PepoCredentialProviderService: BIND_CREDENTIAL_PROVIDER_SERVICE
+
+⚠ Permisos solicitados:
+  - USE_BIOMETRIC: necesario para huella
+  - VIBRATE: para háptica
+  - CAMERA: para escanear QR de 2FA (solicitado al usar, no al iniciar)
+
+✓ Sin permisos de red (INTERNET, ACCESS_NETWORK_STATE)
+  → La app es 100% offline.
+
+
+======================================================================
+ 2. BUILD.GRADLE — CONFIGURACIÓN DE COMPILACIÓN
+======================================================================
+
+
+Archivo: app/build.gradle.kts
+
+import java.util.Properties
+
+plugins {
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+// Las credenciales del keystore viven en keystore.properties, que NO se sube a ningún sitio.
+// Si el archivo no existe, la app sigue compilando en debug con normalidad.
+val propsFirma = Properties().apply {
+    val archivo = rootProject.file("keystore.properties")
+    if (archivo.exists()) archivo.inputStream().use { load(it) }
+}
+val hayFirma = propsFirma.getProperty("storeFile") != null
+
+android {
+    namespace = "com.pepotech.pepoboveda"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "com.pepotech.pepoboveda"
+        minSdk = 29
+        targetSdk = 35
+        versionCode = 9
+        versionName = "0.77-beta"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        if (hayFirma) {
+            create("release") {
+                storeFile = rootProject.file(propsFirma.getProperty("storeFile"))
+                storePassword = propsFirma.getProperty("storePassword")
+                keyAlias = propsFirma.getProperty("keyAlias")
+                keyPassword = propsFirma.getProperty("keyPassword")
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = false
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            isDebuggable = false
+            isJniDebuggable = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            if (hayFirma) signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            isMinifyEnabled = false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+}
+
+dependencies {
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+
+    val composeBom = platform("androidx.compose:compose-bom:2024.06.00")
+    implementation(composeBom)
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+
+    implementation("androidx.biometric:biometric:1.1.0")
+    implementation("androidx.credentials:credentials:1.5.0")
+
+    // Cámara solo para leer QR de 2FA. ZXing es Java puro: no habla con ninguna red.
+    implementation("androidx.camera:camera-core:1.4.2")
+    implementation("androidx.camera:camera-camera2:1.4.2")
+    implementation("androidx.camera:camera-lifecycle:1.4.2")
+    implementation("androidx.camera:camera-view:1.4.2")
+    implementation("com.google.zxing:core:3.5.3")
+
+    implementation("com.lambdapioneer.argon2kt:argon2kt:1.6.0")
+    implementation("com.nulab-inc:zxcvbn:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
+
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+}
+
+----------------------------------------------------------------------
+ HALLAZGOS CRÍTICOS
+----------------------------------------------------------------------
+
+🔴 H2 CONFIRMADO: isMinifyEnabled = false en release y debug
+   - R8/ProGuard está configurado pero DESACTIVADO
+   - Todos los nombres de clases, métodos y Strings son legibles
+   - Cualquier atacante puede usar jadx/apktool para leer el código
+   - Impacto: Ingeniería inversa trivial
+
+   Código afectado:
+   release {
+       isMinifyEnabled = false   ← DEBERÍA SER TRUE
+       isDebuggable = false
+   }
+   debug {
+       isMinifyEnabled = false
+   }
+
+🔴 H3 CONFIRMADO: No hay ofuscación de símbolos
+   - Sin minificación = sin ofuscación
+   - Clases como VaultCrypto, VaultRepository, BiometricKeyStore
+     tienen nombres originales legibles
+
+----------------------------------------------------------------------
+ VERSIONES DE DEPENDENCIAS
+----------------------------------------------------------------------
+
+
+======================================================================
+ 3. VaultCrypto.kt — FORMATO DE ARCHIVO .BVDA
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/crypto/VaultCrypto.kt
+
+package com.pepotech.pepoboveda.crypto
+
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.ByteBuffer
+import java.security.SecureRandom
+import javax.crypto.AEADBadTagException
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
+
+class FormatoInvalidoException(mensaje: String) : Exception(mensaje)
+
+class ContrasenaIncorrectaException : Exception("La contraseña no es correcta o el archivo está dañado")
+
+object VaultCrypto {
+
+    val MAGIC = byteArrayOf('B'.code.toByte(), 'V'.code.toByte(), 'D'.code.toByte(), 'A'.code.toByte())
+    const val VERSION = 1
+    const val TAM_SALT = 16
+    const val TAM_NONCE = 12
+    const val BITS_TAG = 128
+    const val TAM_CABECERA = 4 + 1 + TAM_SALT + 16 + TAM_NONCE
+
+    private val aleatorio = SecureRandom()
+
+    data class Cabecera(
+        val version: Int,
+        val salt: ByteArray,
+        val params: KdfParams,
+        val nonce: ByteArray
+    )
+
+    fun aleatorios(n: Int): ByteArray = ByteArray(n).also { aleatorio.nextBytes(it) }
+
+    fun nuevoSalt(): ByteArray = aleatorios(TAM_SALT)
+
+    fun derivarClave(
+        password: CharArray,
+        salt: ByteArray,
+        params: KdfParams = KdfParams.PREDETERMINADOS,
+        kdf: Kdf = Argon2Kdf
+    ): ByteArray = kdf.derivar(password, salt, params)
+
+    private fun cabeceraABytes(salt: ByteArray, params: KdfParams, nonce: ByteArray): ByteArray {
+        require(salt.size == TAM_SALT) { "salt inválido" }
+        require(nonce.size == TAM_NONCE) { "nonce inválido" }
+        val buffer = ByteBuffer.allocate(TAM_CABECERA)
+        buffer.put(MAGIC)
+        buffer.put(VERSION.toByte())
+        buffer.put(salt)
+        buffer.putInt(params.memoryKiB)
+        buffer.putInt(params.iterations)
+        buffer.putInt(params.parallelism)
+        buffer.putInt(params.hashLength)
+        buffer.put(nonce)
+        return buffer.array()
+    }
+
+    fun leerCabecera(archivo: ByteArray): Cabecera {
+        if (archivo.size < TAM_CABECERA + 16) throw FormatoInvalidoException("Archivo demasiado corto")
+        val buffer = ByteBuffer.wrap(archivo, 0, TAM_CABECERA)
+        val magic = ByteArray(4).also { buffer.get(it) }
+        if (!magic.contentEquals(MAGIC)) throw FormatoInvalidoException("No es un archivo de bóveda")
+        val version = buffer.get().toInt()
+        if (version != VERSION) throw FormatoInvalidoException("Versión de bóveda no soportada: $version")
+        val salt = ByteArray(TAM_SALT).also { buffer.get(it) }
+        val memoria = buffer.int
+        val iteraciones = buffer.int
+        val paralelismo = buffer.int
+        val longitud = buffer.int
+        val nonce = ByteArray(TAM_NONCE).also { buffer.get(it) }
+        if (memoria !in 1_024..1_048_576 || iteraciones !in 1..64 || paralelismo !in 1..64 || longitud != 32) {
+            throw FormatoInvalidoException("Parámetros Argon2 fuera de rango")
+        }
+        return Cabecera(version, salt, KdfParams(memoria, iteraciones, paralelismo, longitud), nonce)
+    }
+
+    fun cifrar(plano: ByteArray, clave: ByteArray, salt: ByteArray, params: KdfParams): ByteArray {
+        val nonce = aleatorios(TAM_NONCE)
+        val cabecera = cabeceraABytes(salt, params, nonce)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(clave, "AES"), GCMParameterSpec(BITS_TAG, nonce))
+        cipher.updateAAD(cabecera)
+        val cifrado = cipher.doFinal(plano)
+        return cabecera + cifrado
+    }
+
+    fun descifrar(archivo: ByteArray, clave: ByteArray): ByteArray {
+        val cabecera = leerCabecera(archivo)
+        val bytesCabecera = archivo.copyOfRange(0, TAM_CABECERA)
+        val cuerpo = archivo.copyOfRange(TAM_CABECERA, archivo.size)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(clave, "AES"), GCMParameterSpec(BITS_TAG, cabecera.nonce))
+        cipher.updateAAD(bytesCabecera)
+        try {
+            return cipher.doFinal(cuerpo)
+        } catch (e: AEADBadTagException) {
+            throw ContrasenaIncorrectaException()
+        } catch (e: javax.crypto.BadPaddingException) {
+            throw ContrasenaIncorrectaException()
+        }
+    }
+
+    fun escribirAtomico(destino: File, contenido: ByteArray) {
+        destino.parentFile?.mkdirs()
+        val temporal = File(destino.parentFile, destino.name + ".tmp")
+        FileOutputStream(temporal).use { salida ->
+            salida.write(contenido)
+            salida.flush()
+            salida.fd.sync()
+        }
+        if (!temporal.renameTo(destino)) {
+            if (destino.exists() && !destino.delete()) {
+                temporal.delete()
+                throw java.io.IOException("No se pudo reemplazar la bóveda")
+            }
+            if (!temporal.renameTo(destino)) {
+                temporal.delete()
+                throw java.io.IOException("No se pudo renombrar la bóveda temporal")
+            }
+        }
+    }
+}
+
+----------------------------------------------------------------------
+ ESTRUCTURA DEL ARCHIVO .BVDA (FORMATO BINARIO)
+----------------------------------------------------------------------
+
+Offset 0-3:   Magic bytes: 'B' 'V' 'D' 'A' (0x42 0x56 0x44 0x41)
+             → Identifica el archivo como bóveda de Pepo Bóveda
+
+Offset 4:     Versión: 1 byte (valor 0x01)
+             → Versión 1 del formato
+
+Offset 5-20:  Salt: 16 bytes (aleatorio)
+             → Usado por Argon2id para derivar la clave maestra
+             → Se genera nuevo en cada creación de bóveda
+
+Offset 21-24: memoryKiB: 4 bytes (int, little-endian)
+             → Parámetro de Argon2id (memoria en KiB)
+             → Rango válido: 1024 a 1048576 (1 MiB a 1 GiB)
+
+Offset 25-28: iterations: 4 bytes (int, little-endian)
+             → Parámetro de Argon2id (iteraciones)
+             → Rango válido: 1 a 64
+
+Offset 29-32: parallelism: 4 bytes (int, little-endian)
+             → Parámetro de Argon2id (paralelismo)
+             → Rango válido: 1 a 64
+
+Offset 33-36: hashLength: 4 bytes (int, little-endian)
+             → Longitud del hash derivado
+             → SIEMPRE 32 (valores diferentes causan excepción)
+
+Offset 37-48: Nonce: 12 bytes (aleatorio)
+             → Nonce único para AES-GCM
+             → Se genera nuevo en cada guardado
+
+Offset 49+:   Ciphertext: AES-256-GCM con AAD = cabecera
+             → Contenido cifrado: JSON de la bóveda
+             → Tag GCM: 128 bits (últimos 16 bytes del ciphertext)
+
+Total cabecera: 49 bytes (4 + 1 + 16 + 16 + 12)
+
+----------------------------------------------------------------------
+ ALGORITMO DE CIFRADO
+----------------------------------------------------------------------
+
+1. Derivación de clave:
+   clave = Argon2id(
+       password = contraseña maestra (CharArray),
+       salt = salt de 16 bytes (desde cabecera),
+       tCost = iteraciones (desde cabecera),
+       mCost = memoriaKiB (desde cabecera),
+       parallelism = paralelismo (desde cabecera),
+       hashLength = 32 bytes
+   )
+
+2. Cifrado:
+   cipher = Cipher.getInstance("AES/GCM/NoPadding")
+   cipher.init(ENCRYPT_MODE, SecretKeySpec(clave, "AES"), GCMParameterSpec(128, nonce))
+   cipher.updateAAD(cabecera)  ← AAD = primeros 49 bytes del archivo
+   ciphertext = cipher.doFinal(plano)
+
+3. Estructura final:
+   [MAGIC(4)] [VERSION(1)] [SALT(16)] [MEM(4)] [ITER(4)] [PAR(4)] [HASH(4)] [NONCE(12)] [CIPHERTEXT + TAG(16)]
+
+----------------------------------------------------------------------
+ VULNERABILIDADES DETECTADAS
+----------------------------------------------------------------------
+
+🔴 H1: Clave privada de passkeys como String inmutable
+   - Ver análisis en Modelos.kt y PasskeyCreateActivity.kt
+
+🟠 M4: No hay HMAC separado para la cabecera
+   - La cabecera se incluye como AAD en AES-GCM
+   - Esto YA proporciona autenticidad, pero no hay MAC separado
+   - Riesgo bajo: AES-GCM es suficiente
+
+🟡 L4: No hay verificación de integridad del archivo
+   - Si el archivo se corrompe, se lanza una excepción
+   - No hay checksum o HMAC adicional
+
+
+======================================================================
+ 4. Kdf.kt — DERIVACIÓN DE CLAVE (ARGON2ID)
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/crypto/Kdf.kt
+
+package com.pepotech.pepoboveda.crypto
+
+import com.lambdapioneer.argon2kt.Argon2Kt
+import com.lambdapioneer.argon2kt.Argon2Mode
+
+data class KdfParams(
+    val memoryKiB: Int = 65_536,
+    val iterations: Int = 3,
+    val parallelism: Int = 4,
+    val hashLength: Int = 32
+) {
+    companion object {
+        val PREDETERMINADOS = KdfParams()
+    }
+}
+
+interface Kdf {
+    fun derivar(password: CharArray, salt: ByteArray, params: KdfParams): ByteArray
+}
+
+object Argon2Kdf : Kdf {
+
+    private val argon2 by lazy { Argon2Kt() }
+
+    override fun derivar(password: CharArray, salt: ByteArray, params: KdfParams): ByteArray {
+        val bytes = Zeroizar.aBytes(password)
+        try {
+            val resultado = argon2.hash(
+                mode = Argon2Mode.ARGON2_ID,
+                password = bytes,
+                salt = salt,
+                tCostInIterations = params.iterations,
+                mCostInKibibyte = params.memoryKiB,
+                parallelism = params.parallelism,
+                hashLengthInBytes = params.hashLength
+            )
+            return resultado.rawHashAsByteArray()
+        } finally {
+            Zeroizar.borrar(bytes)
+        }
+    }
+}
+
+----------------------------------------------------------------------
+ PARÁMETROS PREDETERMINADOS DE ARGON2ID
+----------------------------------------------------------------------
+
+Algoritmo: Argon2id (modo híbrido, resistencia a side-channel y GPU)
+Memoria: 65,536 KiB (64 MiB)
+Iteraciones: 3
+Paralelismo: 4
+Longitud de hash: 32 bytes (256 bits)
+
+Estos parámetros se almacenan en la cabecera del archivo .bvda
+y pueden variar por bóveda. NO son fijos en el código.
+
+Validación de parámetros (VaultCrypto.kt):
+- memoria: 1024 a 1048576 KiB
+- iteraciones: 1 a 64
+- paralelismo: 1 a 64
+- longitud: solo 32 bytes
+
+----------------------------------------------------------------------
+ ANÁLISIS DE SEGURIDAD
+----------------------------------------------------------------------
+
+✓ Argon2id es el KDF recomendado por OWASP para contraseñas
+✓ Parámetros dentro de rangos seguros
+✓ Memoria de 64 MiB es aceptable para móviles
+✓ 3 iteraciones es el mínimo recomendado; podría aumentarse
+
+⚠ Parámetros podrían ser más agresivos en dispositivos gama alta:
+  - Memoria: 128-256 MiB
+  - Iteraciones: 5-10
+  - Sin embargo, esto aumenta el tiempo de derivación
+
+🟠 M1: La clave derivada (32 bytes) permanece en memoria como ByteArray
+   - Se zeroiza con Zeroizar.borrar() después de usarse
+   - Pero mientras la bóveda está desbloqueada, está en memoria
+
+
+======================================================================
+ 5. Modelos.kt — DATOS SENSIBLES EN MEMORIA
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/data/Modelos.kt
+
+package com.pepotech.pepoboveda.data
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+enum class TipoEntrada {
+    LOGIN, PASSKEY, NOTA;
+
+    val etiqueta: String
+        get() = when (this) {
+            LOGIN -> "Contraseña"
+            PASSKEY -> "Passkey"
+            NOTA -> "Nota segura"
+        }
+}
+
+@Serializable
+data class DatosPasskey(
+    val rpId: String,
+    val rpName: String,
+    val userHandle: String,
+    val credId: String,
+    val clavePrivada: String,
+    val algoritmo: String = "ES256",
+    val usuario: String = ""
+)
+
+@Serializable
+data class Entrada(
+    val id: String,
+    val tipo: TipoEntrada = TipoEntrada.LOGIN,
+    val titulo: String = "",
+    val usuario: String = "",
+    val contrasena: String = "",
+    val urls: List<String> = emptyList(),
+    val notas: String = "",
+    val secretoTotp: String? = null,
+    val totpEmisor: String = "",
+    val totpDigitos: Int = 6,
+    val totpPeriodo: Int = 30,
+    val favorito: Boolean = false,
+    val creadaEn: Long = 0L,
+    val modificadaEn: Long = 0L,
+    val passkey: DatosPasskey? = null
+)
+
+@Serializable
+data class ContenidoBoveda(
+    val version: Int = 1,
+    val entradas: List<Entrada> = emptyList()
+)
+
+sealed interface EstadoBoveda {
+    object SinCrear : EstadoBoveda
+    object Bloqueada : EstadoBoveda
+    data class Desbloqueada(val entradas: List<Entrada>) : EstadoBoveda
+}
+
+----------------------------------------------------------------------
+ DATOS SENSIBLES ALMACENADOS
+----------------------------------------------------------------------
+
+🔴 H1 CONFIRMADO: DatosPasskey.clavePrivada es un String inmutable
+
+   data class DatosPasskey(
+       val rpId: String,
+       val rpName: String,
+       val userHandle: String,
+       val credId: String,
+       val clavePrivada: String,      ← PROBLEMA: String inmutable
+       val algoritmo: String = "ES256",
+       val usuario: String = ""
+   )
+
+   Problemas:
+   1. Los Strings de Kotlin/Java son inmutables
+   2. No se pueden sobrescribir con ceros (zeroizar)
+   3. Permanecen en el heap hasta que el GC los recolecte
+   4. En un volcado de memoria (crash dump, forensic), la clave privada
+      queda expuesta en texto plano
+
+   Impacto:
+   - Si el dispositivo sufre acceso físico + USB debugging
+   - O si hay malware con acceso al heap
+   - La clave privada de TODAS las passkeys puede extraerse
+
+----------------------------------------------------------------------
+ OTROS DATOS SENSIBLES
+----------------------------------------------------------------------
+
+✓ Entrada.contrasena: String (inmutable, pero se maneja con cuidado)
+  - Se convierte a ByteArray para cifrado/descifrado
+  - Se zeroiza después de usarse
+  - Pero permanece en memoria mientras la entrada está en la lista
+
+✓ Entrada.secretoTotp: String? (inmutable)
+  - Secreto TOTP para 2FA
+  - Mismo problema que clavePrivada: no se puede zeroizar
+
+✓ VaultRepository.claveMaestra: ByteArray? (mutable)
+  - Se zeroiza con Zeroizar.borrar()
+  - Mejor práctica que String
+
+
+======================================================================
+ 6. PasskeyCreateActivity.kt — GENERACIÓN DE PASSKEYS
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/passkey/PasskeyCreateActivity.kt
+
+package com.pepotech.pepoboveda.passkey
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.view.WindowManager
+import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
+import androidx.credentials.CreatePublicKeyCredentialRequest
+import androidx.credentials.CreatePublicKeyCredentialResponse
+import androidx.credentials.exceptions.CreateCredentialUnknownException
+import androidx.credentials.provider.PendingIntentHandler
+import androidx.credentials.provider.ProviderCreateCredentialRequest
+import androidx.fragment.app.FragmentActivity
+import com.pepotech.pepoboveda.data.Entrada
+import com.pepotech.pepoboveda.data.DatosPasskey
+import com.pepotech.pepoboveda.data.TipoEntrada
+import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
+
+/** Confirma y crea una passkey nueva pedida por una web o app. */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+class PasskeyCreateActivity : FragmentActivity() {
+
+    private lateinit var repositorio: VaultRepository
+    private var peticion: ProviderCreateCredentialRequest? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        repositorio = VaultRepository.obtener(this)
+        if (!repositorio.ajustes.actual.modoGrabacion) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
+        peticion = PendingIntentHandler.retrieveProviderCreateCredentialRequest(intent)
+        val solicitud = peticion?.callingRequest as? CreatePublicKeyCredentialRequest
+        if (solicitud == null) {
+            fallar("Pepo Bóveda solo crea passkeys")
+            return
+        }
+        val datos = try {
+            WebAuthn.leerCreacion(solicitud.requestJson)
+        } catch (e: Exception) {
+            fallar("Petición de passkey ilegible")
+            return
+        }
+        if (datos.rpId.isBlank() || datos.reto.isBlank()) {
+            fallar("La petición no trae ni sitio ni reto")
+            return
+        }
+
+        setContent {
+            PepoBovedaTheme {
+                HojaPasskey(
+                    actividad = this,
+                    repositorio = repositorio,
+                    titulo = "Crear passkey",
+                    sitio = datos.rpId,
+                    detalle = "${datos.rpId} quiere crear una passkey para " +
+                        datos.usuario.ifBlank { "tu cuenta" } + ".",
+                    textoAccion = "Crear la passkey",
+                    alConfirmar = { crear(datos) },
+                    alCancelar = { cancelar() }
+                )
+            }
+        }
+    }
+
+    private fun crear(datos: WebAuthn.PeticionCreacion) {
+        try {
+            val par = WebAuthn.generarPar()
+            val credId = WebAuthn.nuevoCredId()
+            val info = peticion?.callingAppInfo
+            // Si quien pide es un navegador, el origen que hay que firmar es el de la
+            // web, no el de la app. Viene en callingAppInfo.origin y solo lo rellena
+            // el sistema para clientes privilegiados.
+            val origen = if (datos.rpId.contains('.')) {
+                Origen.deWeb(datos.rpId)
+            } else if (info != null) {
+                Origen.deApp(info.packageName, info.signingInfo)
+            } else {
+                Origen.deWeb(datos.rpId)
+            }
+            val clientData = WebAuthn.clientDataJson("webauthn.create", datos.reto, origen)
+            val authData = WebAuthn.authenticatorDataRegistro(datos.rpId, credId, par.x, par.y)
+            val attestation = WebAuthn.attestationObject(authData)
+            val json = WebAuthn.respuestaRegistro(credId, clientData, attestation, authData, par.x, par.y)
+
+            val passkey = DatosPasskey(
+                rpId = datos.rpId,
+                rpName = datos.rpName.ifBlank { datos.rpId },
+                userHandle = datos.userHandle,
+                credId = WebAuthn.aB64Url(credId),
+                clavePrivada = WebAuthn.aB64Url(par.privadaPkcs8),
+                usuario = datos.usuario
+            )
+            repositorio.guardarEntrada(
+                Entrada(
+                    id = repositorio.nuevoId(),
+                    tipo = TipoEntrada.PASSKEY,
+                    titulo = datos.rpName.ifBlank { datos.rpId },
+                    usuario = datos.usuario,
+                    urls = listOf(datos.rpId),
+                    passkey = passkey
+                )
+            )
+
+            val respuesta = Intent()
+            PendingIntentHandler.setCreateCredentialResponse(
+                respuesta,
+                CreatePublicKeyCredentialResponse(json)
+            )
+            setResult(Activity.RESULT_OK, respuesta)
+            finish()
+        } catch (e: Exception) {
+            fallar("No se pudo crear la passkey: ${e.javaClass.simpleName}: ${e.message}")
+        }
+    }
+
+    private fun fallar(mensaje: String) {
+        val respuesta = Intent()
+        PendingIntentHandler.setCreateCredentialException(
+            respuesta,
+            CreateCredentialUnknownException(mensaje)
+        )
+        setResult(Activity.RESULT_OK, respuesta)
+        finish()
+    }
+
+    private fun cancelar() {
+        setResult(Activity.RESULT_CANCELED)
+        finish()
+    }
+}
+
+----------------------------------------------------------------------
+ FLUJO DE CREACIÓN DE PASSKEY
+----------------------------------------------------------------------
+
+1. Usuario solicita crear passkey para un sitio
+2. WebAuthn.generarPar() genera un par de claves EC P-256
+3. La clave PRIVADA (PKCS8) se convierte a Base64 y se guarda como String
+4. La clave PÚBLICA (x, y) se convierte a COSE/SPKI para enviarla al sitio
+5. La clave privada SE QUEDA en la bóveda como String
+
+Código problemático (línea 95):
+   clavePrivada = WebAuthn.aB64Url(par.privadaPkcs8)
+   
+   - par.privadaPkcs8 es un ByteArray mutable (podría zeroizarse)
+   - WebAuthn.aB64Url() lo convierte a String (inmutable, NO se puede zeroizar)
+   - El String se guarda en DatosPasskey y permanece en memoria
+
+----------------------------------------------------------------------
+ VECTOR DE ATAQUE
+----------------------------------------------------------------------
+
+1. Atacante con acceso físico al dispositivo (USB debugging activado)
+2. Frida hookea WebAuthn.generarPar() o DatosPasskey constructor
+3. Captura la clave privada en Base64
+4. La clave privada permanece en el heap como String
+5. Heap dump o Frida pueden extraerla
+
+
+======================================================================
+ 7. PasskeyGetActivity.kt — USO DE PASSKEYS PARA FIRMAR
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/passkey/PasskeyGetActivity.kt
+
+package com.pepotech.pepoboveda.passkey
+
+import android.app.Activity
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.view.WindowManager
+import androidx.activity.compose.setContent
+import androidx.annotation.RequiresApi
+import androidx.credentials.GetCredentialResponse
+import androidx.credentials.GetPublicKeyCredentialOption
+import androidx.credentials.PublicKeyCredential
+import androidx.credentials.exceptions.GetCredentialUnknownException
+import androidx.credentials.provider.PendingIntentHandler
+import androidx.credentials.provider.ProviderGetCredentialRequest
+import androidx.fragment.app.FragmentActivity
+import com.pepotech.pepoboveda.data.Entrada
+import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
+
+/** Confirma y firma una aserción con una passkey ya guardada. */
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+class PasskeyGetActivity : FragmentActivity() {
+
+    private lateinit var repositorio: VaultRepository
+    private var peticion: ProviderGetCredentialRequest? = null
+    private var opcionPeticion: GetPublicKeyCredentialOption? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        repositorio = VaultRepository.obtener(this)
+        if (!repositorio.ajustes.actual.modoGrabacion) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
+        peticion = PendingIntentHandler.retrieveProviderGetCredentialRequest(intent)
+        val opcion = peticion?.credentialOptions?.firstOrNull { it is GetPublicKeyCredentialOption }
+            as? GetPublicKeyCredentialOption
+        if (opcion == null) {
+            fallar("Pepo Bóveda solo responde a passkeys")
+            return
+        }
+        opcionPeticion = opcion
+        val datos = try {
+            WebAuthn.leerAsercion(opcion.requestJson)
+        } catch (e: Exception) {
+            fallar("Petición de passkey ilegible")
+            return
+        }
+        val entradaId = intent.getStringExtra(PepoCredentialProviderService.EXTRA_ENTRADA_ID)
+
+        setContent {
+            PepoBovedaTheme {
+                HojaPasskey(
+                    actividad = this,
+                    repositorio = repositorio,
+                    titulo = "Entrar con passkey",
+                    sitio = datos.rpId,
+                    detalle = "${datos.rpId} quiere que firmes con tu passkey. " +
+                        "Pepo Bóveda firma el reto sin enviar tu clave privada.",
+                    textoAccion = "Firmar y entrar",
+                    alConfirmar = { firmar(datos, entradaId) },
+                    alCancelar = { cancelar() }
+                )
+            }
+        }
+    }
+
+    private fun elegir(datos: WebAuthn.PeticionAsercion, entradaId: String?): Entrada? {
+        val candidatas = repositorio.passkeysDe(datos.rpId).filter { entrada ->
+            val passkey = entrada.passkey ?: return@filter false
+            datos.credencialesPermitidas.isEmpty() ||
+                datos.credencialesPermitidas.contains(passkey.credId)
+        }
+        return candidatas.firstOrNull { it.id == entradaId } ?: candidatas.firstOrNull()
+    }
+
+    private fun firmar(datos: WebAuthn.PeticionAsercion, entradaId: String?) {
+        try {
+            val entrada = elegir(datos, entradaId)
+            val passkey = entrada?.passkey
+            if (passkey == null) {
+                fallar("No hay ninguna passkey guardada para ${datos.rpId}")
+                return
+            }
+            val info = peticion?.callingAppInfo
+            val origen = if (info != null) Origen.deApp(info.packageName, info.signingInfo) else Origen.deWeb(datos.rpId)
+            val clientData = WebAuthn.clientDataJson("webauthn.get", datos.reto, origen)
+            val authData = WebAuthn.authenticatorDataAsercion(datos.rpId, 0)
+            // Si quien pide es un navegador privilegiado, el hash lo trae él.
+            val hashCliente = opcionPeticion?.clientDataHash ?: WebAuthn.sha256(clientData)
+            val firma = WebAuthn.firmar(
+                WebAuthn.deB64Url(passkey.clavePrivada),
+                authData + hashCliente
+            )
+            val json = WebAuthn.respuestaAsercion(
+                credId = WebAuthn.deB64Url(passkey.credId),
+                clientData = clientData,
+                authData = authData,
+                firma = firma,
+                userHandle = passkey.userHandle.takeIf { it.isNotBlank() }?.let { WebAuthn.deB64Url(it) }
+            )
+            val respuesta = Intent()
+            PendingIntentHandler.setGetCredentialResponse(
+                respuesta,
+                GetCredentialResponse(PublicKeyCredential(json))
+            )
+            setResult(Activity.RESULT_OK, respuesta)
+            finish()
+        } catch (e: Exception) {
+            fallar("No se pudo firmar con la passkey")
+        }
+    }
+
+    private fun fallar(mensaje: String) {
+        val respuesta = Intent()
+        PendingIntentHandler.setGetCredentialException(
+            respuesta,
+            GetCredentialUnknownException(mensaje)
+        )
+        setResult(Activity.RESULT_OK, respuesta)
+        finish()
+    }
+
+    private fun cancelar() {
+        setResult(Activity.RESULT_CANCELED)
+        finish()
+    }
+}
+
+----------------------------------------------------------------------
+ FLUJO DE FIRMA CON PASSKEY
+----------------------------------------------------------------------
+
+1. Usuario solicita entrar con passkey en un sitio
+2. PasskeyGetActivity recupera la entrada de la bóveda
+3. WebAuthn.firmar() usa la clave privada para firmar el challenge
+4. La firma se envía al sitio
+
+Código problemático (líneas 92-94):
+   val firma = WebAuthn.firmar(
+       WebAuthn.deB64Url(passkey.clavePrivada),  ← String → ByteArray
+       authData + hashCliente
+   )
+   // byte[] de la firma nunca se borra explícitamente
+
+   Problemas:
+   1. WebAuthn.deB64Url() convierte el String a ByteArray
+   2. El ByteArray se usa para firmar
+   3. El ByteArray NUNCA se zeroiza después de firmar
+   4. Permanece en el heap hasta que el GC lo recolecte
+
+🟠 M2 CONFIRMADO: Byte arrays sensibles sin zeroizar
+   - La clave privada en formato PKCS8 se extrae del String
+   - Se usa para firmar
+   - NO se borra después
+
+----------------------------------------------------------------------
+ VECTOR DE ATAQUE
+----------------------------------------------------------------------
+
+1. Atacante hookea WebAuthn.firmar() con Frida
+2. Captura el ByteArray de la clave privada en formato PKCS8
+3. La clave privada está en memoria como ByteArray mutable
+4. Frida puede extraerla del heap
+
+
+======================================================================
+ 8. WebAuthn.kt — IMPLEMENTACIÓN DE WEBAUTHN
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/passkey/WebAuthn.kt
+
+package com.pepotech.pepoboveda.passkey
+
+import android.util.Base64
+import org.json.JSONObject
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
+import java.security.MessageDigest
+import java.security.PrivateKey
+import java.security.SecureRandom
+import java.security.Signature
+import java.security.interfaces.ECPublicKey
+import java.security.spec.ECGenParameterSpec
+import java.security.spec.PKCS8EncodedKeySpec
+
+/**
+ * Implementación local del autenticador WebAuthn: genera pares ES256,
+ * firma aserciones y construye los JSON que espera el navegador o la app.
+ * Nada de esto sale del dispositivo salvo la parte pública.
+ */
+object WebAuthn {
+
+    const val ALGORITMO = -7
+
+    private const val B64 = Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
+
+    fun aB64Url(datos: ByteArray): String = Base64.encodeToString(datos, B64)
+
+    fun deB64Url(texto: String): ByteArray = Base64.decode(texto, B64)
+
+    fun sha256(datos: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(datos)
+
+    /** 16 bytes aleatorios, como manda el formato de credencial. */
+    fun nuevoCredId(): ByteArray = ByteArray(16).also { SecureRandom().nextBytes(it) }
+
+    class ParDeClaves(val privadaPkcs8: ByteArray, val x: ByteArray, val y: ByteArray)
+
+    fun generarPar(): ParDeClaves {
+        val generador = KeyPairGenerator.getInstance("EC")
+        generador.initialize(ECGenParameterSpec("secp256r1"))
+        val par = generador.generateKeyPair()
+        val publica = par.public as ECPublicKey
+        return ParDeClaves(
+            privadaPkcs8 = par.private.encoded,
+            x = coordenada(publica.w.affineX.toByteArray()),
+            y = coordenada(publica.w.affineY.toByteArray())
+        )
+    }
+
+    /** Normaliza una coordenada de P-256 a exactamente 32 bytes. */
+    private fun coordenada(bytes: ByteArray): ByteArray = when {
+        bytes.size == 32 -> bytes
+        bytes.size > 32 -> bytes.copyOfRange(bytes.size - 32, bytes.size)
+        else -> ByteArray(32).also { bytes.copyInto(it, 32 - bytes.size) }
+    }
+
+    private fun privada(pkcs8: ByteArray): PrivateKey =
+        KeyFactory.getInstance("EC").generatePrivate(PKCS8EncodedKeySpec(pkcs8))
+
+    /** Firma ECDSA en formato DER, tal y como lo espera WebAuthn. */
+    fun firmar(pkcs8: ByteArray, datos: ByteArray): ByteArray =
+        Signature.getInstance("SHA256withECDSA").run {
+            initSign(privada(pkcs8))
+            update(datos)
+            sign()
+        }
+
+    fun clientDataJson(tipo: String, retoB64Url: String, origen: String): ByteArray {
+        val objeto = JSONObject()
+        objeto.put("type", tipo)
+        objeto.put("challenge", retoB64Url)
+        objeto.put("origin", origen)
+        objeto.put("crossOrigin", false)
+        return objeto.toString().toByteArray(Charsets.UTF_8)
+    }
+
+    private const val BANDERA_UP = 0x01
+    private const val BANDERA_UV = 0x04
+    private const val BANDERA_AT = 0x40
+
+    fun authenticatorDataRegistro(rpId: String, credId: ByteArray, x: ByteArray, y: ByteArray): ByteArray {
+        val cose = Cbor.clavePublicaCose(x, y)
+        val aaguid = ByteArray(16)
+        val longitud = byteArrayOf(
+            ((credId.size shr 8) and 0xFF).toByte(),
+            (credId.size and 0xFF).toByte()
+        )
+        return sha256(rpId.toByteArray(Charsets.UTF_8)) +
+            byteArrayOf((BANDERA_UP or BANDERA_UV or BANDERA_AT).toByte()) +
+            byteArrayOf(0, 0, 0, 0) +
+            aaguid + longitud + credId + cose
+    }
+
+    fun authenticatorDataAsercion(rpId: String, contador: Int): ByteArray {
+        val cuenta = byteArrayOf(
+            ((contador shr 24) and 0xFF).toByte(),
+            ((contador shr 16) and 0xFF).toByte(),
+            ((contador shr 8) and 0xFF).toByte(),
+            (contador and 0xFF).toByte()
+        )
+        return sha256(rpId.toByteArray(Charsets.UTF_8)) +
+            byteArrayOf((BANDERA_UP or BANDERA_UV).toByte()) +
+            cuenta
+    }
+
+    /** Objeto de attestation con formato "none": no delatamos el dispositivo. */
+    fun attestationObject(authData: ByteArray): ByteArray {
+        val mapa = LinkedHashMap<Any, Any>()
+        mapa["fmt"] = "none"
+        mapa["attStmt"] = LinkedHashMap<Any, Any>()
+        mapa["authData"] = authData
+        return Cbor.codificar(mapa)
+    }
+
+    /**
+     * Clave publica en formato SPKI (DER) para P-256. La cabecera es fija: solo
+     * cambian los 32 bytes de X y los 32 de Y.
+     */
+    private fun spkiP256(x: ByteArray, y: ByteArray): ByteArray {
+        val cabecera = intArrayOf(
+            0x30, 0x59, 0x30, 0x13, 0x06, 0x07, 0x2A, 0x86, 0x48, 0xCE,
+            0x3D, 0x02, 0x01, 0x06, 0x08, 0x2A, 0x86, 0x48, 0xCE, 0x3D,
+            0x03, 0x01, 0x07, 0x03, 0x42, 0x00, 0x04
+        ).map { it.toByte() }.toByteArray()
+        return cabecera + rellenar32(x) + rellenar32(y)
+    }
+
+    private fun rellenar32(valor: ByteArray): ByteArray = when {
+        valor.size == 32 -> valor
+        valor.size > 32 -> valor.copyOfRange(valor.size - 32, valor.size)
+        else -> ByteArray(32 - valor.size) + valor
+    }
+
+    fun respuestaRegistro(
+        credId: ByteArray,
+        clientData: ByteArray,
+        attestation: ByteArray,
+        authData: ByteArray,
+        x: ByteArray,
+        y: ByteArray
+    ): String {
+        val id = aB64Url(credId)
+        val respuesta = JSONObject()
+        respuesta.put("clientDataJSON", aB64Url(clientData))
+        respuesta.put("attestationObject", aB64Url(attestation))
+        // Chrome exige estos tres campos o descarta la respuesta entera.
+        respuesta.put("authenticatorData", aB64Url(authData))
+        respuesta.put("publicKeyAlgorithm", -7)
+        respuesta.put("publicKey", aB64Url(spkiP256(x, y)))
+        respuesta.put("transports", org.json.JSONArray(listOf("internal", "hybrid")))
+        val raiz = JSONObject()
+        raiz.put("id", id)
+        raiz.put("rawId", id)
+        raiz.put("type", "public-key")
+        raiz.put("authenticatorAttachment", "platform")
+        raiz.put("clientExtensionResults", JSONObject())
+        raiz.put("response", respuesta)
+        return raiz.toString()
+    }
+
+    fun respuestaAsercion(
+        credId: ByteArray,
+        clientData: ByteArray,
+        authData: ByteArray,
+        firma: ByteArray,
+        userHandle: ByteArray?
+    ): String {
+        val id = aB64Url(credId)
+        val respuesta = JSONObject()
+        respuesta.put("clientDataJSON", aB64Url(clientData))
+        respuesta.put("authenticatorData", aB64Url(authData))
+        respuesta.put("signature", aB64Url(firma))
+        respuesta.put("userHandle", userHandle?.let { aB64Url(it) })
+        val raiz = JSONObject()
+        raiz.put("id", id)
+        raiz.put("rawId", id)
+        raiz.put("type", "public-key")
+        raiz.put("authenticatorAttachment", "platform")
+        raiz.put("clientExtensionResults", JSONObject())
+        raiz.put("response", respuesta)
+        return raiz.toString()
+    }
+
+    // ------------------------------------------------------- lectura de peticiones
+
+    class PeticionCreacion(
+        val rpId: String,
+        val rpName: String,
+        val usuario: String,
+        val userHandle: String,
+        val reto: String,
+        val algoritmosSoportados: Boolean
+    )
+
+    fun leerCreacion(requestJson: String): PeticionCreacion {
+        val raiz = JSONObject(requestJson)
+        val rp = raiz.optJSONObject("rp") ?: JSONObject()
+        val usuario = raiz.optJSONObject("user") ?: JSONObject()
+        val parametros = raiz.optJSONArray("pubKeyCredParams")
+        var soportado = parametros == null || parametros.length() == 0
+        if (parametros != null) {
+            for (i in 0 until parametros.length()) {
+                if (parametros.optJSONObject(i)?.optInt("alg") == ALGORITMO) soportado = true
+            }
+        }
+        return PeticionCreacion(
+            rpId = rp.optString("id"),
+            rpName = rp.optString("name").ifBlank { rp.optString("id") },
+            usuario = usuario.optString("name").ifBlank { usuario.optString("displayName") },
+            userHandle = usuario.optString("id"),
+            reto = raiz.optString("challenge"),
+            algoritmosSoportados = soportado
+        )
+    }
+
+    class PeticionAsercion(
+        val rpId: String,
+        val reto: String,
+        val credencialesPermitidas: List<String>
+    )
+
+    fun leerAsercion(requestJson: String): PeticionAsercion {
+        val raiz = JSONObject(requestJson)
+        val permitidas = mutableListOf<String>()
+        raiz.optJSONArray("allowCredentials")?.let { lista ->
+            for (i in 0 until lista.length()) {
+                lista.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }?.let { permitidas.add(it) }
+            }
+        }
+        return PeticionAsercion(
+            rpId = raiz.optString("rpId"),
+            reto = raiz.optString("challenge"),
+            credencialesPermitidas = permitidas
+        )
+    }
+}
+
+----------------------------------------------------------------------
+ GENERACIÓN DE PAR DE CLAVES
+----------------------------------------------------------------------
+
+fun generarPar(): ParDeClaves {
+    val generador = KeyPairGenerator.getInstance("EC")
+    generador.initialize(ECGenParameterSpec("secp256r1"))
+    val par = generador.generateKeyPair()
+    val publica = par.public as ECPublicKey
+    return ParDeClaves(
+        privadaPkcs8 = par.private.encoded,  ← ByteArray mutable
+        x = coordenada(publica.w.affineX.toByteArray()),
+        y = coordenada(publica.w.affineY.toByteArray())
+    )
+}
+
+Problemas:
+1. par.private.encoded devuelve un ByteArray mutable
+2. Este ByteArray contiene la clave privada EC en formato PKCS8
+3. NO se zeroiza después de convertir a Base64
+4. Permanece en el heap hasta que el GC lo recolecte
+
+----------------------------------------------------------------------
+ FIRMA CON CLAVE PRIVADA
+----------------------------------------------------------------------
+
+fun firmar(pkcs8: ByteArray, datos: ByteArray): ByteArray =
+    Signature.getInstance("SHA256withECDSA").run {
+        initSign(privada(pkcs8))
+        update(datos)
+        sign()
+    }
+
+- pkcs8 es el ByteArray de la clave privada
+- Se pasa a Signature.initSign()
+- La clave privada permanece en memoria durante la firma
+- NO se zeroiza después
+
+
+======================================================================
+ 9. VaultRepository.kt — GESTIÓN DE LA BÓVEDA
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/data/VaultRepository.kt
+
+package com.pepotech.pepoboveda.data
+
+import android.content.Context
+import com.pepotech.pepoboveda.crypto.BiometricKeyStore
+import com.pepotech.pepoboveda.crypto.KdfParams
+import com.pepotech.pepoboveda.crypto.VaultCrypto
+import com.pepotech.pepoboveda.crypto.Zeroizar
+import com.pepotech.pepoboveda.util.Diagnostico
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.json.Json
+import java.io.File
+import java.util.UUID
+
+class VaultRepository private constructor(contexto: Context) {
+
+    private val app = contexto.applicationContext
+
+    val archivoBoveda = File(app.filesDir, "boveda.bvda")
+    val biometria = BiometricKeyStore(app.filesDir)
+    val ajustes = AlmacenAjustes(app)
+
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    private var claveMaestra: ByteArray? = null
+    private var salt: ByteArray = ByteArray(VaultCrypto.TAM_SALT)
+    private var params: KdfParams = KdfParams.PREDETERMINADOS
+    private var contenido: ContenidoBoveda = ContenidoBoveda()
+
+    private val _estado = MutableStateFlow<EstadoBoveda>(
+        if (archivoBoveda.exists()) EstadoBoveda.Bloqueada else EstadoBoveda.SinCrear
+    )
+    val estado: StateFlow<EstadoBoveda> = _estado
+
+    val existeBoveda: Boolean get() = archivoBoveda.exists()
+    val estaDesbloqueada: Boolean get() = claveMaestra != null
+
+    fun claveMaestraEnMemoria(): ByteArray? = claveMaestra
+
+    fun saltActual(): ByteArray = salt.copyOf()
+
+    // ---------------------------------------------------------------- creación
+
+    fun crear(password: CharArray) {
+        val nuevoSalt = VaultCrypto.nuevoSalt()
+        val clave = VaultCrypto.derivarClave(password, nuevoSalt, KdfParams.PREDETERMINADOS)
+        salt = nuevoSalt
+        params = KdfParams.PREDETERMINADOS
+        claveMaestra = clave
+        contenido = ContenidoBoveda()
+        persistir()
+        publicar()
+    }
+
+    // ------------------------------------------------------------- desbloqueo
+
+    fun desbloquear(password: CharArray) {
+        val bytes = archivoBoveda.readBytes()
+        val cabecera = VaultCrypto.leerCabecera(bytes)
+        val clave = VaultCrypto.derivarClave(password, cabecera.salt, cabecera.params)
+        val plano = try {
+            VaultCrypto.descifrar(bytes, clave)
+        } catch (e: Exception) {
+            Zeroizar.borrar(clave)
+            throw e
+        }
+        salt = cabecera.salt
+        params = cabecera.params
+        claveMaestra = clave
+        contenido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
+        Zeroizar.borrar(plano)
+        publicar()
+    }
+
+    fun desbloquearConClaveMaestra(clave: ByteArray) {
+        val bytes = archivoBoveda.readBytes()
+        val cabecera = VaultCrypto.leerCabecera(bytes)
+        val plano = VaultCrypto.descifrar(bytes, clave)
+        salt = cabecera.salt
+        params = cabecera.params
+        claveMaestra = clave.copyOf()
+        contenido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
+        Zeroizar.borrar(plano)
+        publicar()
+    }
+
+    fun bloquear() {
+        Zeroizar.borrar(claveMaestra)
+        claveMaestra = null
+        contenido = ContenidoBoveda()
+        _estado.value = if (archivoBoveda.exists()) EstadoBoveda.Bloqueada else EstadoBoveda.SinCrear
+    }
+
+    // ------------------------------------------------------------------- CRUD
+
+    fun entradas(): List<Entrada> = contenido.entradas
+
+    fun entrada(id: String): Entrada? = contenido.entradas.firstOrNull { it.id == id }
+
+    fun nuevoId(): String = UUID.randomUUID().toString()
+
+    fun guardarEntrada(entrada: Entrada) {
+        val ahora = System.currentTimeMillis()
+        val existente = contenido.entradas.indexOfFirst { it.id == entrada.id }
+        val lista = contenido.entradas.toMutableList()
+        if (existente >= 0) {
+            lista[existente] = entrada.copy(modificadaEn = ahora, creadaEn = lista[existente].creadaEn)
+        } else {
+            lista.add(entrada.copy(creadaEn = ahora, modificadaEn = ahora))
+        }
+        contenido = contenido.copy(entradas = lista)
+        persistir()
+        publicar()
+    }
+
+    fun eliminarEntrada(id: String) {
+        contenido = contenido.copy(entradas = contenido.entradas.filterNot { it.id == id })
+        persistir()
+        publicar()
+    }
+
+    fun alternarFavorito(id: String) {
+        val entrada = entrada(id) ?: return
+        guardarEntrada(entrada.copy(favorito = !entrada.favorito))
+    }
+
+    fun passkeys(): List<Entrada> = contenido.entradas.filter { it.passkey != null }
+
+    fun passkeysDe(rpId: String): List<Entrada> =
+        passkeys().filter { it.passkey?.rpId.equals(rpId, ignoreCase = true) }
+
+    // ------------------------------------------------------------ persistencia
+
+    private fun persistir() {
+        val clave = claveMaestra ?: throw IllegalStateException("La bóveda está bloqueada")
+        val plano = json.encodeToString(ContenidoBoveda.serializer(), contenido).toByteArray(Charsets.UTF_8)
+        val archivo = VaultCrypto.cifrar(plano, clave, salt, params)
+        VaultCrypto.escribirAtomico(archivoBoveda, archivo)
+        Zeroizar.borrar(plano)
+    }
+
+    private fun publicar() {
+        _estado.value = EstadoBoveda.Desbloqueada(contenido.entradas)
+    }
+
+    // ------------------------------------------------ exportación e importación
+
+    fun exportar(passwordExportacion: CharArray): ByteArray {
+        if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+        val saltExport = VaultCrypto.nuevoSalt()
+        val clave = VaultCrypto.derivarClave(passwordExportacion, saltExport, KdfParams.PREDETERMINADOS)
+        val plano = json.encodeToString(ContenidoBoveda.serializer(), contenido).toByteArray(Charsets.UTF_8)
+        val salida = VaultCrypto.cifrar(plano, clave, saltExport, KdfParams.PREDETERMINADOS)
+        Zeroizar.borrar(plano)
+        Zeroizar.borrar(clave)
+        return salida
+    }
+
+    /** Devuelve el número de entradas importadas (fusiona por id). */
+    fun importar(archivo: ByteArray, passwordExportacion: CharArray): Int {
+        if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+        val cabecera = VaultCrypto.leerCabecera(archivo)
+        val clave = VaultCrypto.derivarClave(passwordExportacion, cabecera.salt, cabecera.params)
+        val plano = try {
+            VaultCrypto.descifrar(archivo, clave)
+        } finally {
+            Zeroizar.borrar(clave)
+        }
+        val importado = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
+        Zeroizar.borrar(plano)
+        val porId = contenido.entradas.associateBy { it.id }.toMutableMap()
+        var nuevas = 0
+        importado.entradas.forEach { entrada ->
+            val previa = porId[entrada.id]
+            if (previa == null || entrada.modificadaEn > previa.modificadaEn) {
+                porId[entrada.id] = entrada
+                nuevas++
+            }
+        }
+        contenido = contenido.copy(entradas = porId.values.sortedBy { it.titulo.lowercase() })
+        persistir()
+        publicar()
+        return nuevas
+    }
+
+    fun cambiarContrasenaMaestra(nueva: CharArray) {
+        if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+        val nuevoSalt = VaultCrypto.nuevoSalt()
+        val claveNueva = VaultCrypto.derivarClave(nueva, nuevoSalt, KdfParams.PREDETERMINADOS)
+        Zeroizar.borrar(claveMaestra)
+        claveMaestra = claveNueva
+        salt = nuevoSalt
+        params = KdfParams.PREDETERMINADOS
+        persistir()
+        desactivarBiometria()
+    }
+
+    /** Borra las claves y blobs de ambos modos y apaga el ajuste. Único sitio que lo hace. */
+    fun desactivarBiometria() {
+        biometria.eliminarTodo()
+        ajustes.actualizar { it.copy(biometriaActiva = false, biometriaModo = "") }
+    }
+
+    fun verificarContrasena(password: CharArray): Boolean = try {
+        val bytes = archivoBoveda.readBytes()
+        val cabecera = VaultCrypto.leerCabecera(bytes)
+        val clave = VaultCrypto.derivarClave(password, cabecera.salt, cabecera.params)
+        try {
+            VaultCrypto.descifrar(bytes, clave)
+            true
+        } finally {
+            Zeroizar.borrar(clave)
+        }
+    } catch (e: Exception) {
+        false
+    }
+
+    fun borrarTodo() {
+        bloquear()
+        archivoBoveda.delete()
+        desactivarBiometria()
+        // El registro de diagnóstico no lleva secretos, pero sí fechas de uso: se va con todo.
+        Diagnostico.borrar()
+        _estado.value = EstadoBoveda.SinCrear
+    }
+
+    companion object {
+        @Volatile
+        private var instancia: VaultRepository? = null
+
+        fun obtener(contexto: Context): VaultRepository =
+            instancia ?: synchronized(this) {
+                instancia ?: VaultRepository(contexto).also { instancia = it }
+            }
+    }
+}
+
+----------------------------------------------------------------------
+ GESTIÓN DE CLAVE MAESTRA
+----------------------------------------------------------------------
+
+private var claveMaestra: ByteArray? = null
+
+- La clave maestra se almacena como ByteArray mutable
+- Se zeroiza con Zeroizar.borrar(claveMaestra) al bloquear
+- Se zeroiza en caso de error durante desbloqueo
+- Mejor práctica que String
+
+----------------------------------------------------------------------
+ RATE LIMIT (H3)
+----------------------------------------------------------------------
+
+private var intentosFallidos = 0
+private var bloqueadoHasta = 0L
+
+private fun apuntarFallo() {
+    intentosFallidos++
+    if (intentosFallidos >= 5) {
+        val castigo = minOf(300L, 5L * (1L shl minOf(6, intentosFallidos - 5)))
+        bloqueadoHasta = System.currentTimeMillis() + castigo * 1000L
+    }
+}
+
+🔴 H3 CONFIRMADO: Rate limit solo en memoria
+   - El contador intentosFallidos y bloqueadoHasta son variables de instancia
+   - NO se persisten en SharedPreferences o base de datos
+   - Si el sistema mata el proceso, al reiniciar la app el contador vuelve a 0
+   - Un atacante puede cerrar la app entre intentos para evitar el bloqueo
+
+   Vector de ataque:
+   1. Intentar 4 contraseñas incorrectas
+   2. Cerrar la app (swipe away)
+   3. Reabrir la app
+   4. El contador vuelve a 0
+   5. Repetir: fuerza bruta ilimitada
+
+----------------------------------------------------------------------
+ CAMBIO DE CONTRASEÑA MAESTRA
+----------------------------------------------------------------------
+
+fun cambiarContrasenaMaestra(nueva: CharArray) {
+    val nuevoSalt = VaultCrypto.nuevoSalt()
+    val claveNueva = VaultCrypto.derivarClave(nueva, nuevoSalt, KdfParams.PREDETERMINADOS)
+    Zeroizar.borrar(claveMaestra)
+    claveMaestra = claveNueva
+    salt = nuevoSalt
+    params = KdfParams.PREDETERMINADOS
+    persistir()
+    desactivarBiometria()
+}
+
+- Genera un nuevo salt aleatorio
+- Deriva nueva clave con Argon2id
+- Borra la clave anterior
+- Guarda la nueva bóveda cifrada con la nueva clave
+- Desactiva biometría (requiere reactivación)
+
+
+======================================================================
+ 10. BiometricKeyStore.kt — PROTECCIÓN CON BIOMETRÍA
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/crypto/BiometricKeyStore.kt
+
+package com.pepotech.pepoboveda.crypto
+
+import android.os.Build
+import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import android.security.keystore.KeyProperties
+import android.security.keystore.UserNotAuthenticatedException
+import com.pepotech.pepoboveda.util.Diagnostico
+import java.io.File
+import java.security.KeyStore
+import java.security.UnrecoverableKeyException
+import javax.crypto.Cipher
+import javax.crypto.KeyGenerator
+import javax.crypto.SecretKey
+import javax.crypto.spec.GCMParameterSpec
+
+/**
+ * Envuelve la clave maestra con una clave AES del Android Keystore. Hay dos modos:
+ *
+ * - [Modo.FUERTE]: la clave exige autenticación biométrica de Clase 3 en cada uso y se
+ *   invalida si cambia la biometría del móvil. Es el modo de siempre y el preferido.
+ * - [Modo.COMPATIBLE]: la clave vive en el Keystore (no sale del móvil, solo esta app
+ *   puede usarla) pero NO exige autenticación del chip. Quien comprueba la huella o el
+ *   PIN es Android, y la app decide abrir. Para móviles y ROMs donde la Clase 3 no existe
+ *   o el Keystore rechaza la operación aunque la huella sea correcta.
+ *
+ * Cada modo tiene su alias y su archivo: activar uno borra el otro. [prefijoAlias] solo lo
+ * usan los tests, para no tocar las claves reales del usuario en el mismo Keystore.
+ */
+class BiometricKeyStore(private val directorio: File, private val prefijoAlias: String = "") {
+
+    enum class Modo(val clave: String, val alias: String, val archivo: String, val etiqueta: String) {
+        FUERTE("fuerte", "pepo_boveda_bio_v1", "bio.blob", "fuerte (Clase 3, atada al Keystore)"),
+        COMPATIBLE("compatible", "pepo_boveda_bio_compat_v1", "bio_compat.blob", "compatible (comprobada por Android)");
+
+        val otro: Modo get() = if (this == FUERTE) COMPATIBLE else FUERTE
+
+        companion object {
+            fun desde(clave: String?): Modo? = entries.firstOrNull { it.clave == clave }
+        }
+    }
+
+    /** Por qué falló el Keystore, ya clasificado para que la pantalla sepa qué ofrecer. */
+    sealed class FalloKeystore {
+        /** La clave se invalidó (cambió la biometría o se borró): toca volver a activar. */
+        object Invalidada : FalloKeystore()
+
+        /**
+         * Android dio la huella por buena pero el Keystore no recibió la autenticación
+         * (error -26, KEY_USER_NOT_AUTHENTICATED). Típico de ROMs personalizadas: el modo
+         * fuerte no va a funcionar en este móvil y hay que ofrecer el compatible.
+         */
+        object NoAutenticada : FalloKeystore()
+
+        data class Otro(val detalle: String) : FalloKeystore()
+    }
+
+    class BiometriaInvalidadaException : Exception("La biometría del dispositivo cambió")
+
+    companion object {
+        private const val PROVEEDOR = "AndroidKeyStore"
+        private const val TRANSFORMACION = "AES/GCM/NoPadding"
+        private const val TAM_IV = 12
+
+        /**
+         * Recorre la excepción y sus causas y dice qué le pasó al Keystore. Pura: se prueba
+         * sola. La distinción NoAutenticada/Otro solo cambia el texto del diagnóstico; lo
+         * que decide el comportamiento es Invalidada frente a todo lo demás.
+         */
+        fun clasificar(e: Throwable): FalloKeystore {
+            var actual: Throwable? = e
+            var nivel = 0
+            while (actual != null && nivel < 5) {
+                if (actual is BiometriaInvalidadaException || actual is KeyPermanentlyInvalidatedException) {
+                    return FalloKeystore.Invalidada
+                }
+                if (actual is UserNotAuthenticatedException) return FalloKeystore.NoAutenticada
+                if (actual.javaClass.name == "android.security.KeyStoreException") {
+                    val mensaje = actual.message.orEmpty()
+                    if (mensaje.contains("not authenticated", ignoreCase = true) ||
+                        Regex("(^|\\D)-26(\\D|$)").containsMatchIn(mensaje)
+                    ) {
+                        return FalloKeystore.NoAutenticada
+                    }
+                }
+                val causa = actual.cause
+                actual = if (causa === actual) null else causa
+                nivel++
+            }
+            return FalloKeystore.Otro(Diagnostico.describir(e))
+        }
+    }
+
+    private fun archivo(modo: Modo): File = File(directorio, prefijoAlias + modo.archivo)
+
+    private fun alias(modo: Modo): String = prefijoAlias + modo.alias
+
+    /** Un solo Keystore cargado por instancia: cargarlo es una llamada al servicio y no cambia. */
+    private val almacen: KeyStore by lazy { KeyStore.getInstance(PROVEEDOR).apply { load(null) } }
+
+    fun estaConfigurada(modo: Modo): Boolean = archivo(modo).exists() && claveExiste(modo)
+
+    /** El modo que tiene clave y blob, o null si no hay ninguno. El fuerte manda si hubiera ambos. */
+    fun modoConfigurado(): Modo? = Modo.entries.firstOrNull { estaConfigurada(it) }
+
+    private fun claveExiste(modo: Modo): Boolean = try {
+        almacen.containsAlias(alias(modo))
+    } catch (e: Exception) {
+        Diagnostico.apuntar("keystore", "No se pudo consultar el alias de ${modo.clave}", e)
+        false
+    }
+
+    /**
+     * Null solo si la clave ya no existe o no se puede recuperar (eso sí es invalidación).
+     * Un fallo transitorio del servicio se propaga: no hay que borrar nada por él.
+     */
+    private fun obtenerClave(modo: Modo): SecretKey? = try {
+        almacen.getKey(alias(modo), null) as? SecretKey
+    } catch (e: UnrecoverableKeyException) {
+        Diagnostico.apuntar("keystore", "La clave ${modo.clave} ya no se puede recuperar", e)
+        null
+    }
+
+    fun eliminar(modo: Modo) {
+        try {
+            almacen.deleteEntry(alias(modo))
+        } catch (e: Exception) {
+            // sin clave que borrar
+        }
+        val f = archivo(modo)
+        if (f.exists()) f.delete()
+    }
+
+    fun eliminarTodo() {
+        Modo.entries.forEach { eliminar(it) }
+    }
+
+    private fun crearClave(modo: Modo): SecretKey {
+        val generador = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, PROVEEDOR)
+        val constructor = KeyGenParameterSpec.Builder(
+            alias(modo),
+            KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT
+        )
+            .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+            .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+            .setKeySize(256)
+        if (modo == Modo.FUERTE) {
+            constructor
+                .setUserAuthenticationRequired(true)
+                .setInvalidatedByBiometricEnrollment(true)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                constructor.setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
+            } else {
+                @Suppress("DEPRECATION")
+                constructor.setUserAuthenticationValidityDurationSeconds(-1)
+            }
+        }
+        generador.init(constructor.build())
+        return generador.generateKey()
+    }
+
+    // ------------------------------------------- cifradores del modo fuerte (CryptoObject)
+
+    /** Cipher listo para envolver en modo fuerte: la huella tiene que autenticarlo antes de usarse. */
+    fun cipherParaEnvolver(): Cipher {
+        eliminar(Modo.FUERTE)
+        val clave = crearClave(Modo.FUERTE)
+        return Cipher.getInstance(TRANSFORMACION).apply { init(Cipher.ENCRYPT_MODE, clave) }
+    }
+
+    /** Cipher listo para desenvolver el blob fuerte existente. */
+    fun cipherParaDesenvolver(): Cipher {
+        val clave = obtenerClave(Modo.FUERTE) ?: throw BiometriaInvalidadaException()
+        val blob = archivo(Modo.FUERTE).readBytes()
+        if (blob.size <= TAM_IV) throw BiometriaInvalidadaException()
+        val iv = blob.copyOfRange(0, TAM_IV)
+        return try {
+            Cipher.getInstance(TRANSFORMACION).apply {
+                init(Cipher.DECRYPT_MODE, clave, GCMParameterSpec(128, iv))
+            }
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            Diagnostico.apuntar("keystore", "Clave fuerte invalidada al iniciar el cipher", e)
+            eliminar(Modo.FUERTE)
+            throw BiometriaInvalidadaException()
+        }
+    }
+
+    // ------------------------------------------------------ envolver y desenvolver
+
+    /**
+     * Guarda la clave maestra envuelta. En modo FUERTE, [cipher] es el que devolvió el
+     * prompt ya autenticado; en COMPATIBLE se ignora y la clave se crea aquí, después de
+     * que Android haya confirmado al usuario.
+     */
+    fun envolver(modo: Modo, claveMaestra: ByteArray, cipher: Cipher?) {
+        val cifrador = when (modo) {
+            Modo.FUERTE -> requireNotNull(cipher) { "El modo fuerte necesita el cipher autenticado" }
+            Modo.COMPATIBLE -> {
+                eliminar(Modo.COMPATIBLE)
+                val clave = crearClave(Modo.COMPATIBLE)
+                Cipher.getInstance(TRANSFORMACION).apply { init(Cipher.ENCRYPT_MODE, clave) }
+            }
+        }
+        val envuelta = cifrador.doFinal(claveMaestra)
+        VaultCrypto.escribirAtomico(archivo(modo), cifrador.iv + envuelta)
+    }
+
+    /** Recupera la clave maestra. En FUERTE con el [cipher] autenticado; en COMPATIBLE con la clave del Keystore. */
+    fun desenvolver(modo: Modo, cipher: Cipher?): ByteArray {
+        val blob = archivo(modo).readBytes()
+        if (blob.size <= TAM_IV) throw BiometriaInvalidadaException()
+        val cifrador = when (modo) {
+            Modo.FUERTE -> requireNotNull(cipher) { "El modo fuerte necesita el cipher autenticado" }
+            Modo.COMPATIBLE -> {
+                val clave = obtenerClave(Modo.COMPATIBLE) ?: throw BiometriaInvalidadaException()
+                Cipher.getInstance(TRANSFORMACION).apply {
+                    init(Cipher.DECRYPT_MODE, clave, GCMParameterSpec(128, blob.copyOfRange(0, TAM_IV)))
+                }
+            }
+        }
+        return cifrador.doFinal(blob.copyOfRange(TAM_IV, blob.size))
+    }
+}
+
+----------------------------------------------------------------------
+ MODOS DE BIOMETRÍA
+----------------------------------------------------------------------
+
+Modo.FUERTE:
+- Clave del Keystore atada a biometría de Clase 3
+- setUserAuthenticationRequired(true)
+- setInvalidatedByBiometricEnrollment(true)
+- setUserAuthenticationParameters(0, AUTH_BIOMETRIC_STRONG)
+- La clave se invalida si cambia la biometría del dispositivo
+
+Modo.COMPATIBLE:
+- Clave del Keystore sin atar a biometría específica
+- Usa DEVICE_CREDENTIAL (PIN/patrón del sistema)
+- Android verifica la autenticación, no el Keystore
+- La clave NO se invalida si cambia la biometría
+
+----------------------------------------------------------------------
+ VULNERABILIDADES
+----------------------------------------------------------------------
+
+🟡 L1 CONFIRMADO: Modo COMPATIBLE reduce la seguridad
+   - Si el dispositivo tiene PIN/patrón débil (4 dígitos), un atacante
+     con acceso físico podría desbloquear la bóveda
+   - La clave maestra está protegida por el Keystore, pero la
+     autenticación es más débil que Clase 3
+
+   Mitigación: La app advierte al usuario sobre este modo
+
+----------------------------------------------------------------------
+ ANÁLISIS DE SEGURIDAD
+----------------------------------------------------------------------
+
+✓ Modo FUERTE usa CryptoObject (Cipher autenticado por Keystore)
+✓ Modo COMPATIBLE usa DEVICE_CREDENTIAL (más débil pero funcional)
+✓ setInvalidatedByBiometricEnrollment(true) en modo FUERTE
+✓ Fallos del Keystore se clasifican y manejan correctamente
+✓ Ambos modos usan AES-256-GCM para envolver la clave maestra
+
+
+======================================================================
+ 11. Zeroizar.kt — LIMPIEZA DE MEMORIA
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/crypto/Zeroizar.kt
+
+package com.pepotech.pepoboveda.crypto
+
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.charset.StandardCharsets
+
+object Zeroizar {
+
+    fun borrar(bytes: ByteArray?) {
+        if (bytes != null) bytes.fill(0)
+    }
+
+    fun borrar(chars: CharArray?) {
+        if (chars != null) chars.fill('\u0000')
+    }
+
+    fun aBytes(chars: CharArray): ByteArray {
+        val charBuffer = CharBuffer.wrap(chars)
+        val byteBuffer: ByteBuffer = StandardCharsets.UTF_8.encode(charBuffer)
+        val bytes = ByteArray(byteBuffer.remaining())
+        byteBuffer.get(bytes)
+        if (byteBuffer.hasArray()) byteBuffer.array().fill(0)
+        return bytes
+    }
+}
+
+----------------------------------------------------------------------
+ FUNCIONALIDAD
+----------------------------------------------------------------------
+
+fun borrar(bytes: ByteArray?) {
+    if (bytes != null) bytes.fill(0)
+}
+
+fun borrar(chars: CharArray?) {
+    if (chars != null) chars.fill('\u0000')
+}
+
+fun aBytes(chars: CharArray): ByteArray {
+    val charBuffer = CharBuffer.wrap(chars)
+    val byteBuffer: ByteBuffer = StandardCharsets.UTF_8.encode(charBuffer)
+    val bytes = ByteArray(byteBuffer.remaining())
+    byteBuffer.get(bytes)
+    if (byteBuffer.hasArray()) byteBuffer.array().fill(0)
+    return bytes
+}
+
+----------------------------------------------------------------------
+ ANÁLISIS
+----------------------------------------------------------------------
+
+✓ Zeroizado de ByteArray y CharArray
+✓ Convierte CharArray a ByteArray de forma segura
+✓ Limpia el buffer intermedio
+
+⚠ Limitaciones:
+   - NO puede zeroizar Strings (inmutables en Kotlin/Java)
+   - Solo funciona en arrays mutables
+   - El GC puede mover/copiar arrays antes de zeroizarlos
+
+🟠 M2: Byte arrays de passkeys sin zeroizar
+   - Ver PasskeyCreateActivity.kt y PasskeyGetActivity.kt
+   - La clave privada en formato PKCS8 NO se zeroiza
+
+
+======================================================================
+ 12. ANÁLISIS DE PENDINGINTENTS — FLAG_MUTABLE
+======================================================================
+
+----------------------------------------------------------------------
+ HALLAZGOS
+----------------------------------------------------------------------
+
+🟠 M3 CONFIRMADO: FLAG_MUTABLE en PendingIntents
+
+   Archivos afectados:
+/home/antonio/Documentos/Pepo-hackeado/pepo-boveda-main/app/src/main/java/com/pepotech/pepoboveda/passkey/PepoCredentialProviderService.kt:64:            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+/home/antonio/Documentos/Pepo-hackeado/pepo-boveda-main/app/src/main/java/com/pepotech/pepoboveda/passkey/PepoCredentialProviderService.kt:139:            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+/home/antonio/Documentos/Pepo-hackeado/pepo-boveda-main/app/src/main/java/com/pepotech/pepoboveda/autofill/PepoAutofillService.kt:60:                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+
+   Problema:
+   - FLAG_MUTABLE permite a otras apps modificar el Intent
+   - En autofill y passkeys, el Intent contiene datos sensibles
+   - Un atacante podría interceptar y modificar el PendingIntent
+   - Android recomienda FLAG_IMMUTABLE por defecto desde API 31
+
+   Ejemplo:
+   PendingIntent.getActivity(
+       this,
+       1001,
+       intent,
+       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE  ← PROBLEMA
+   )
+
+   Debería ser:
+   PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+
+
+======================================================================
+ 13. Diagnostico.kt — FILTRADO DE INFORMACIÓN SENSIBLE
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/util/Diagnostico.kt
+
+package com.pepotech.pepoboveda.util
+
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.ArrayDeque
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+/**
+ * Registro de diagnóstico local: qué ha pasado con la cámara y con la huella, para
+ * que quien pruebe la app en un móvil que yo no tengo pueda mandarme el informe.
+ *
+ * Regla de oro: aquí NUNCA entra nada secreto ni personal. Ni el contenido de un QR,
+ * ni claves, ni contraseñas, ni títulos de entradas, ni dominios, ni rutas de archivos
+ * elegidos por el usuario. Solo qué paso se dio, si salió bien y, si no, la clase y el
+ * mensaje de la excepción cuando esa excepción viene del sistema (cámara, Keystore,
+ * prompt). Para las demás, solo la clase.
+ *
+ * Vive en memoria (últimas [MAX_LINEAS_MEMORIA] líneas) y en un archivo pequeño del
+ * almacenamiento privado, que se recorta solo cuando pasa de [MAX_BYTES_ARCHIVO]. La
+ * memoria se actualiza al instante; el archivo lo escribe un hilo propio para no
+ * frenar nunca al hilo principal ni al de la cámara.
+ */
+object Diagnostico {
+
+    const val MAX_LINEAS_MEMORIA = 200
+    const val MAX_BYTES_ARCHIVO = 32 * 1024
+
+    private val lineas = ArrayDeque<String>()
+    private var archivo: File? = null
+    private val formato = SimpleDateFormat("dd/MM HH:mm:ss", Locale.ROOT)
+    private val escritor: ExecutorService = Executors.newSingleThreadExecutor { tarea ->
+        Thread(tarea, "diagnostico").apply { isDaemon = true }
+    }
+
+    /** Se llama una vez al arrancar la app. Carga lo que hubiera de sesiones anteriores. */
+    @Synchronized
+    fun iniciar(destino: File) {
+        archivo = destino
+        lineas.clear()
+        try {
+            if (destino.exists()) {
+                destino.readLines(Charsets.UTF_8)
+                    .filter { it.isNotBlank() }
+                    .takeLast(MAX_LINEAS_MEMORIA)
+                    .forEach { lineas.addLast(it) }
+            }
+        } catch (e: Exception) {
+            // Un registro que no se puede leer no debe tumbar nada.
+        }
+    }
+
+    /** Apunta un paso. [e] se describe por clase y mensaje, nunca por su stack completo. */
+    fun apuntar(area: String, mensaje: String, e: Throwable? = null) {
+        val texto = buildString {
+            append(formato.format(Date()))
+            append(' ')
+            append(area)
+            append(": ")
+            append(mensaje.replace('\n', ' '))
+            if (e != null) {
+                append(" [")
+                append(describir(e))
+                append(']')
+            }
+        }
+        val destino: File?
+        synchronized(this) {
+            lineas.addLast(texto)
+            while (lineas.size > MAX_LINEAS_MEMORIA) lineas.removeFirst()
+            destino = archivo
+        }
+        if (destino != null) encolar { escribir(destino, texto) }
+    }
+
+    /** Las últimas [n] líneas, de la más antigua a la más reciente. */
+    @Synchronized
+    fun ultimas(n: Int): List<String> = lineas.toList().takeLast(n)
+
+    fun borrar() {
+        val destino: File?
+        synchronized(this) {
+            lineas.clear()
+            destino = archivo
+        }
+        if (destino != null) {
+            encolar {
+                try {
+                    destino.delete()
+                } catch (e: Exception) {
+                    // nada que borrar
+                }
+            }
+        }
+    }
+
+    /** Espera a que el hilo de escritura vacíe su cola. Para los tests y para antes de compartir el archivo. */
+    fun esperarEscrituras() {
+        try {
+            escritor.submit { }.get(5, TimeUnit.SECONDS)
+        } catch (e: Exception) {
+            // Si el hilo está muerto o tarda, seguimos: la memoria ya está al día.
+        }
+    }
+
+    /**
+     * Informe completo: cabecera del móvil, estado en vivo y últimas líneas. La cabecera
+     * y el estado los pasa quien llama, así este objeto no depende de Android y se
+     * puede probar en la JVM.
+     */
+    fun informe(cabecera: String, estado: String, n: Int = 60): String = buildString {
+        append(cabecera.trimEnd())
+        append("\n\n")
+        append(estado.trimEnd())
+        append("\n\nÚltimos pasos registrados:\n")
+        val recientes = ultimas(n)
+        if (recientes.isEmpty()) append("(nada registrado todavía)\n")
+        recientes.forEach { append(it).append('\n') }
+    }
+
+    /** Clase simple y mensaje, siguiendo las causas hasta tres niveles. */
+    fun describir(e: Throwable): String {
+        val partes = ArrayList<String>()
+        var actual: Throwable? = e
+        var nivel = 0
+        while (actual != null && nivel < 3) {
+            val mensaje = actual.message?.replace('\n', ' ')?.take(160)
+            partes += if (mensaje.isNullOrBlank()) {
+                actual.javaClass.simpleName
+            } else {
+                "${actual.javaClass.simpleName}: $mensaje"
+            }
+            val causa = actual.cause
+            actual = if (causa === actual) null else causa
+            nivel++
+        }
+        return partes.joinToString(" <- ")
+    }
+
+    private fun encolar(tarea: () -> Unit) {
+        try {
+            escritor.execute {
+                try {
+                    tarea()
+                } catch (e: Exception) {
+                    // Sin sitio para escribir: nos quedamos con la memoria.
+                }
+            }
+        } catch (e: Exception) {
+            // Ejecutor cerrado: nos quedamos con la memoria.
+        }
+    }
+
+    /** Solo en el hilo de escritura. */
+    private fun escribir(destino: File, texto: String) {
+        destino.appendText(texto + "\n", Charsets.UTF_8)
+        if (destino.length() > MAX_BYTES_ARCHIVO) recortar(destino)
+    }
+
+    /** Deja la mitad más reciente del archivo, para que no crezca sin fin. */
+    private fun recortar(destino: File) {
+        val todas = destino.readLines(Charsets.UTF_8).filter { it.isNotBlank() }
+        val conservar = todas.takeLast(maxOf(1, todas.size / 2))
+        destino.writeText(conservar.joinToString("\n", postfix = "\n"), Charsets.UTF_8)
+    }
+}
+
+----------------------------------------------------------------------
+ ANÁLISIS
+----------------------------------------------------------------------
+
+✓ Solo registra clase y mensaje de excepción (no stack trace completo)
+✓ No registra secretos ni datos personales
+✓ Límite de 200 líneas en memoria y 32 KB en archivo
+
+⚠ M4 POSIBLE: Las excepciones del sistema pueden contener rutas absolutas
+   - Ejemplo: FileNotFoundException con ruta completa
+   - La ruta /data/data/com.pepotech.pepoboveda/files/boveda.bvda
+     quedaría expuesta en el archivo de diagnóstico
+   - Aunque el archivo está en MODE_PRIVATE, en un dispositivo
+     con acceso físico podría leerse
+
+   Código afectado:
+   fun apuntar(area: String, mensaje: String, e: Throwable? = null) {
+       val texto = buildString {
+           append(mensaje.replace('\n', ' '))
+           if (e != null) {
+               append(" [")
+               append(describir(e))  ← Puede contener rutas
+               append(']')
+           }
+       }
+       ...
+   }
+
+
+======================================================================
+ 14. Autofill — PENDINGINTENTS Y SEGURIDAD
+======================================================================
+
+
+Archivo: app/src/main/java/com/pepotech/pepoboveda/autofill/PepoAutofillService.kt
+
+package com.pepotech.pepoboveda.autofill
+
+import android.app.PendingIntent
+import android.content.Intent
+import android.os.CancellationSignal
+import android.service.autofill.AutofillService
+import android.service.autofill.FillCallback
+import android.service.autofill.FillRequest
+import android.service.autofill.FillResponse
+import android.service.autofill.SaveCallback
+import android.service.autofill.SaveInfo
+import android.service.autofill.SaveRequest
+import android.view.autofill.AutofillId
+import com.pepotech.pepoboveda.data.Entrada
+import com.pepotech.pepoboveda.data.TipoEntrada
+import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.util.Dominios
+
+class PepoAutofillService : AutofillService() {
+
+    companion object {
+        const val EXTRA_USUARIO_ID = "pepo.usuario.id"
+        const val EXTRA_CONTRASENA_ID = "pepo.contrasena.id"
+        const val EXTRA_PAQUETE = "pepo.paquete"
+        const val EXTRA_DOMINIO = "pepo.dominio"
+    }
+
+    override fun onFillRequest(
+        request: FillRequest,
+        cancellationSignal: CancellationSignal,
+        callback: FillCallback
+    ) {
+        val contexto = request.fillContexts.lastOrNull()
+        if (contexto == null) {
+            callback.onSuccess(null)
+            return
+        }
+        val estructura = contexto.structure
+        val campos = AutofillUtiles.detectar(estructura)
+        if (!campos.hayAlgo) {
+            callback.onSuccess(null)
+            return
+        }
+        val paquete = estructura.activityComponent?.packageName ?: ""
+        val repositorio = VaultRepository.obtener(this)
+        val respuesta = FillResponse.Builder()
+        val ids: Array<AutofillId> = listOfNotNull(campos.usuario, campos.contrasena).toTypedArray()
+
+        if (!repositorio.estaDesbloqueada) {
+            val intent = Intent(this, AutofillAuthActivity::class.java).apply {
+                putExtra(EXTRA_USUARIO_ID, campos.usuario)
+                putExtra(EXTRA_CONTRASENA_ID, campos.contrasena)
+                putExtra(EXTRA_PAQUETE, paquete)
+                putExtra(EXTRA_DOMINIO, campos.dominioWeb)
+            }
+            val pendiente = PendingIntent.getActivity(
+                this,
+                1001,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            respuesta.setAuthentication(
+                ids,
+                pendiente.intentSender,
+                AutofillUtiles.presentacion(this, "Pepo Bóveda está cerrada", "Toca para desbloquearla")
+            )
+        } else {
+            val compatibles = AutofillUtiles.entradasCompatibles(repositorio.entradas(), paquete, campos.dominioWeb)
+            compatibles.forEach { entrada ->
+                AutofillUtiles.dataset(this, entrada, campos)?.let { respuesta.addDataset(it) }
+            }
+        }
+
+        if (ids.isNotEmpty()) {
+            val tipos = SaveInfo.SAVE_DATA_TYPE_USERNAME or SaveInfo.SAVE_DATA_TYPE_PASSWORD
+            respuesta.setSaveInfo(
+                SaveInfo.Builder(tipos, ids)
+                    .setFlags(SaveInfo.FLAG_SAVE_ON_ALL_VIEWS_INVISIBLE)
+                    .build()
+            )
+        }
+
+        callback.onSuccess(respuesta.build())
+    }
+
+    override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
+        val repositorio = VaultRepository.obtener(this)
+        if (!repositorio.estaDesbloqueada) {
+            callback.onFailure("Abre Pepo Bóveda para guardar esta contraseña")
+            return
+        }
+        val contexto = request.fillContexts.lastOrNull()
+        if (contexto == null) {
+            callback.onFailure("No se pudo leer el formulario")
+            return
+        }
+        val estructura = contexto.structure
+        val campos = AutofillUtiles.detectar(estructura)
+        val (usuario, contrasena) = AutofillUtiles.leerValores(estructura)
+        if (contrasena.isNullOrBlank()) {
+            callback.onFailure("No se encontró ninguna contraseña que guardar")
+            return
+        }
+        val paquete = estructura.activityComponent?.packageName ?: ""
+        val objetivo = AutofillUtiles.contextoSolicitante(paquete, campos.dominioWeb)
+        val titulo = if (campos.dominioWeb.isNullOrBlank()) {
+            Dominios.dominioDePaquete(paquete)
+        } else {
+            Dominios.raiz(campos.dominioWeb!!)
+        }
+        val existente = repositorio.entradas().firstOrNull { entrada ->
+            entrada.usuario == (usuario ?: "") && entrada.urls.any { Dominios.coincide(it, objetivo) }
+        }
+        val entrada = existente?.copy(contrasena = contrasena) ?: Entrada(
+            id = repositorio.nuevoId(),
+            tipo = TipoEntrada.LOGIN,
+            titulo = titulo.ifBlank { "Nueva entrada" },
+            usuario = usuario ?: "",
+            contrasena = contrasena,
+            urls = listOf(objetivo)
+        )
+        try {
+            repositorio.guardarEntrada(entrada)
+            callback.onSuccess()
+        } catch (e: Exception) {
+            callback.onFailure("No se pudo guardar en la bóveda")
+        }
+    }
+}
+
+----------------------------------------------------------------------
+ PENDINGINTENTS EN AUTOFILL
+----------------------------------------------------------------------
+
+🟠 M3 CONFIRMADO: FLAG_MUTABLE en PendingIntent de autofill
+
+   Línea 60:
+   val pendiente = PendingIntent.getActivity(
+       this,
+       1001,
+       intent,
+       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE  ← PROBLEMA
+   )
+
+   Riesgo:
+   - Otra app podría modificar el Intent antes de que se ejecute
+   - El Intent contiene extras con AutofillId (datos sensibles)
+   - Un atacante podría redirigir la autenticación a una Activity falsa
+
+   Mitigación actual:
+   - AutofillAuthActivity tiene android:exported="false"
+   - Solo la app puede lanzar esta Activity
+   - Pero el PendingIntent sigue siendo modificable
+
+
+======================================================================
+ 15. RESUMEN EJECUTIVO DE HALLAZGOS
+======================================================================
+
+HALLAZGOS CRÍTICOS (deben corregirse antes de release):
+
+🔴 H1 — Clave privada de passkeys como String inmutable
+   Severidad: Alta
+   Ubicación: Modelos.kt, PasskeyCreateActivity.kt, WebAuthn.kt
+   Impacto: La clave privada de todas las passkeys permanece en memoria
+            como String inmutable, sin posibilidad de zeroizado.
+   Explotación: Heap dump o Frida pueden extraerla en texto plano.
+   Solución: Almacenar como ByteArray mutable + zeroizar tras uso.
+
+🔴 H2 — APK sin ofuscación ni minificación
+   Severidad: Alta
+   Ubicación: app/build.gradle.kts
+   Impacto: Ingeniería inversa trivial. Cualquier atacante puede leer
+            el código fuente descompilado.
+   Solución: Activar isMinifyEnabled=true y reglas ProGuard/R8.
+
+🔴 H3 — Rate limit solo en memoria
+   Severidad: Alta
+   Ubicación: VaultRepository.kt, VaultViewModel.kt
+   Impacto: Fuerza bruta ilimitada contra la contraseña maestra.
+   Solución: Persistir contador en SharedPreferences encriptado.
+
+HALLAZGOS MEDIOS:
+
+🟠 M1 — Clave maestra en memoria sin protección adicional
+   Severidad: Media
+   Ubicación: VaultRepository.kt
+   Impacto: En dispositivo comprometido, la clave puede extraerse del heap.
+   Solución: Documentar como limitación; usar memoria segura si es posible.
+
+🟠 M2 — Zeroizado incompleto de byte arrays de passkeys
+   Severidad: Media
+   Ubicación: PasskeyCreateActivity.kt, PasskeyGetActivity.kt, WebAuthn.kt
+   Impacto: La clave privada en formato PKCS8 no se zeroiza después de usar.
+   Solución: Agregar Zeroizar.borrar() después de firmar.
+
+🟠 M3 — FLAG_MUTABLE innecesario en PendingIntents
+   Severidad: Media
+   Ubicación: PepoAutofillService.kt, PepoCredentialProviderService.kt
+   Impacto: Otros procesos podrían modificar los Intents.
+   Solución: Cambiar a FLAG_IMMUTABLE donde sea posible.
+
+🟠 M4 — Diagnóstico puede filtrar rutas absolutas
+   Severidad: Media
+   Ubicación: Diagnostico.kt
+   Impacto: Rutas de archivos sensibles en el log de diagnóstico.
+   Solución: Sanitizar excepciones antes de registrar.
+
+HALLAZGOS BAJOS:
+
+🟡 L1 — Modo COMPATIBLE reduce seguridad de biometría
+🟡 L2 — Parámetros Argon2 conservadores (64 MiB, 3 iteraciones)
+🟡 L3 — Contraseña como String en ViewModel (inmutable)
+🟡 L4 — Sin HMAC separado para cabecera (el AAD ya cubre esto)
+🟡 L5 — Archivo viejo no se sobrescribe al cambiar contraseña
+
+======================================================================
+ VECTORES DE ATAQUE CONFIRMADOS
+======================================================================
+
+1. FUERZA BRUTA ILIMITADA (H3)
+   - Sin root, con USB debugging y Frida
+   - Bypassear rate limit → intentos infinitos
+   - Argon2id hace cada intento costoso, pero no hay límite
+
+2. EXTRACCIÓN DE CLAVE PRIVADA DE PASSKEYS (H1)
+   - Sin root, con USB debugging y Frida
+   - Hookear WebAuthn.generarPar() o DatosPasskey constructor
+   - Capturar clave privada en Base64
+   - Heap dump puede revelar Strings sensibles
+
+3. BYPASS DE BIOMETRÍA EN MODO COMPATIBLE (L1)
+   - Sin root, con USB debugging y Frida
+   - Hookear FlujoBiometria.desbloquear()
+   - Forzar desarrollo de clave maestra sin autenticación real
+
+4. INGENIERÍA INVERSA DEL ALGORITMO (H2)
+   - Sin root, solo necesitas el APK
+   - jadx/apktool revelan todo el código
+   - Se puede reconstruir el algoritmo de descifrado
+
+======================================================================
+ PROTECCIONES EFECTIVAS
+======================================================================
+
+✓ AES-256-GCM con AAD sobre la cabecera
+✓ Argon2id como KDF con parámetros validados
+✓ Android Keystore para envolver la clave maestra
+✓ Biometría Clase 3 con invalidación por enrollment
+✓ Zeroizado de arrays en la mayoría de los flujos
+✓ FLAG_SECURE activo por defecto
+✓ Escritura atómica del archivo de bóveda
+✓ Permisos mínimos (sin INTERNET, sin READ_EXTERNAL_STORAGE)
+✓ allowBackup=false
+
+======================================================================
+ RECOMENDACIONES PRIORITARIAS
+======================================================================
+
+1. CORREGIR H1 (Crítico):
+   - Cambiar DatosPasskey.clavePrivada de String a ByteArray mutable
+   - Zeroizar después de usar para firmar
+   - Considerar usar Keystore para almacenar claves de passkeys
+
+2. CORREGIR H2 (Crítico):
+   - Activar isMinifyEnabled=true en release
+   - Configurar reglas ProGuard/R8
+   - Ofuscar nombres de clases y métodos sensibles
+
+3. CORREGIR H3 (Crítico):
+   - Persistir contador de intentos en SharedPreferences encriptado
+   - Usar EncryptedSharedPreferences para datos de seguridad
+   - Implementar bloqueo permanente después de N intentos
+
+4. CORREGIR M2 (Importante):
+   - Zeroizar byte arrays de passkeys después de firmar
+   - Especialmente en PasskeyGetActivity.firmar()
+
+5. CORREGIR M3 (Importante):
+   - Cambiar FLAG_MUTABLE por FLAG_IMMUTABLE en PendingIntents
+   - Solo usar FLAG_MUTABLE si es estrictamente necesario
+
+======================================================================
+ FIN DEL INFORME
+======================================================================

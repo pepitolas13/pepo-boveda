@@ -17,6 +17,7 @@ import com.pepotech.pepoboveda.data.Entrada
 import com.pepotech.pepoboveda.data.DatosPasskey
 import com.pepotech.pepoboveda.data.TipoEntrada
 import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
 
 /** Confirma y crea una passkey nueva pedida por una web o app. */
@@ -71,17 +72,19 @@ class PasskeyCreateActivity : FragmentActivity() {
         try {
             val par = WebAuthn.generarPar()
             val credId = WebAuthn.nuevoCredId()
-            val info = peticion?.callingAppInfo
-            // Si quien pide es un navegador, el origen que hay que firmar es el de la
-            // web, no el de la app. Viene en callingAppInfo.origin y solo lo rellena
-            // el sistema para clientes privilegiados.
-            val origen = if (datos.rpId.contains('.')) {
-                Origen.deWeb(datos.rpId)
-            } else if (info != null) {
-                Origen.deApp(info.packageName, info.signingInfo)
-            } else {
-                Origen.deWeb(datos.rpId)
-            }
+        val info = peticion?.callingAppInfo
+        val paqueteLlamante = info?.packageName
+        if (!VerificarLlamante.esLlamanteValido(this, paqueteLlamante)) {
+            fallar("Llamante no autorizado para passkeys")
+            return
+        }
+        val origen = if (datos.rpId.contains('.')) {
+            Origen.deWeb(datos.rpId)
+        } else if (info != null) {
+            Origen.deApp(info.packageName, info.signingInfo)
+        } else {
+            Origen.deWeb(datos.rpId)
+        }
             val clientData = WebAuthn.clientDataJson("webauthn.create", datos.reto, origen)
             val authData = WebAuthn.authenticatorDataRegistro(datos.rpId, credId, par.x, par.y)
             val attestation = WebAuthn.attestationObject(authData)
@@ -92,7 +95,7 @@ class PasskeyCreateActivity : FragmentActivity() {
                 rpName = datos.rpName.ifBlank { datos.rpId },
                 userHandle = datos.userHandle,
                 credId = WebAuthn.aB64Url(credId),
-                clavePrivada = WebAuthn.aB64Url(par.privadaPkcs8),
+                clavePrivada = par.privadaPkcs8.copyOf(),
                 usuario = datos.usuario
             )
             repositorio.guardarEntrada(
@@ -105,6 +108,7 @@ class PasskeyCreateActivity : FragmentActivity() {
                     passkey = passkey
                 )
             )
+            Zeroizar.borrar(par.privadaPkcs8)
 
             val respuesta = Intent()
             PendingIntentHandler.setCreateCredentialResponse(

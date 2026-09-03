@@ -117,7 +117,7 @@ object AutofillUtiles {
         )
         val constructor = Dataset.Builder(vista)
         campos.usuario?.let { constructor.setValue(it, AutofillValue.forText(entrada.usuario)) }
-        campos.contrasena?.let { constructor.setValue(it, AutofillValue.forText(entrada.contrasena)) }
+        campos.contrasena?.let { constructor.setValue(it, AutofillValue.forText(String(entrada.contrasena, Charsets.UTF_8))) }
         return try {
             constructor.build()
         } catch (e: IllegalArgumentException) {
@@ -136,7 +136,7 @@ object AutofillUtiles {
         // com.netflix.timoso y se le ofrecían las credenciales de Netflix. Fuera: solo vale lo
         // que el usuario haya guardado explícitamente en "Sitios o paquetes".
         return entradas.filter { entrada ->
-            entrada.contrasena.isNotBlank() && entrada.urls.any { guardado ->
+            entrada.contrasena.isNotEmpty() && entrada.urls.any { guardado ->
                 Dominios.coincide(guardado, objetivo)
             }
         }

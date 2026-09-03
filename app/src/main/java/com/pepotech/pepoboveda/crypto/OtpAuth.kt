@@ -11,11 +11,27 @@ object OtpAuth {
     data class Semilla(
         val emisor: String,
         val cuenta: String,
-        val secreto: String,
+        val secreto: ByteArray,
         val digitos: Int = 6,
         val periodo: Int = 30
     ) {
         val titulo: String get() = emisor.ifBlank { cuenta.ifBlank { "2FA" } }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Semilla) return false
+            return emisor == other.emisor && cuenta == other.cuenta &&
+                secreto.contentEquals(other.secreto) && digitos == other.digitos && periodo == other.periodo
+        }
+
+        override fun hashCode(): Int {
+            var result = emisor.hashCode()
+            result = 31 * result + cuenta.hashCode()
+            result = 31 * result + secreto.contentHashCode()
+            result = 31 * result + digitos
+            result = 31 * result + periodo
+            return result
+        }
     }
 
     /** Devuelve null si el texto no es un otpauth de TOTP utilizable. */
@@ -24,8 +40,8 @@ object OtpAuth {
         if (!limpio.startsWith("otpauth://totp/", ignoreCase = true)) {
             // También aceptamos un secreto Base32 pegado a pelo.
             val soloSecreto = limpio.replace(" ", "").uppercase()
-            return if (soloSecreto.isNotEmpty() && Base32.esValido(soloSecreto)) {
-                Semilla(emisor = "", cuenta = "", secreto = soloSecreto)
+                return if (soloSecreto.isNotEmpty() && Base32.esValido(soloSecreto)) {
+                    Semilla(emisor = "", cuenta = "", secreto = Base32.decodificar(soloSecreto))
             } else {
                 null
             }
@@ -43,8 +59,8 @@ object OtpAuth {
             if (clave.isNotEmpty()) parametros[clave] = valor
         }
 
-        val secreto = (parametros["secret"] ?: return null).replace(" ", "").uppercase()
-        if (secreto.isEmpty() || !Base32.esValido(secreto)) return null
+        val secretoBase32 = (parametros["secret"] ?: return null).replace(" ", "").uppercase()
+        if (secretoBase32.isEmpty() || !Base32.esValido(secretoBase32)) return null
 
         val emisorEtiqueta = if (etiqueta.contains(':')) etiqueta.substringBefore(':').trim() else ""
         val cuenta = if (etiqueta.contains(':')) etiqueta.substringAfter(':').trim() else etiqueta.trim()
@@ -52,7 +68,7 @@ object OtpAuth {
         return Semilla(
             emisor = (parametros["issuer"] ?: emisorEtiqueta).trim(),
             cuenta = cuenta,
-            secreto = secreto,
+            secreto = Base32.decodificar(secretoBase32),
             digitos = parametros["digits"]?.toIntOrNull()?.coerceIn(6, 8) ?: 6,
             periodo = parametros["period"]?.toIntOrNull()?.coerceIn(10, 300) ?: 30
         )

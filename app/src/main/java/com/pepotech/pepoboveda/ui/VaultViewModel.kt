@@ -8,8 +8,10 @@ import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.data.AjustesApp
 import com.pepotech.pepoboveda.data.Entrada
 import com.pepotech.pepoboveda.data.EstadoBoveda
+import com.pepotech.pepoboveda.data.RateLimitStore
 import com.pepotech.pepoboveda.data.TipoEntrada
 import com.pepotech.pepoboveda.data.VaultRepository
+import com.pepotech.pepoboveda.data.isNullOrEmpty
 import com.pepotech.pepoboveda.util.Diagnostico
 import com.pepotech.pepoboveda.util.Portapapeles
 import kotlinx.coroutines.Dispatchers
@@ -109,27 +111,10 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
     // ------------------------------------------- freno a los intentos de clave
 
-    private var intentosFallidos = 0
-    private var bloqueadoHasta = 0L
+    private val contexto: Application get() = getApplication()
 
     /** Segundos que faltan para poder volver a probar. 0 si se puede probar ya. */
-    fun esperaPorIntentos(): Long {
-        val restante = bloqueadoHasta - System.currentTimeMillis()
-        return if (restante > 0) (restante / 1000) + 1 else 0
-    }
-
-    private fun apuntarFallo() {
-        intentosFallidos++
-        if (intentosFallidos >= 5) {
-            val castigo = minOf(300L, 5L * (1L shl minOf(6, intentosFallidos - 5)))
-            bloqueadoHasta = System.currentTimeMillis() + castigo * 1000L
-        }
-    }
-
-    private fun limpiarFallos() {
-        intentosFallidos = 0
-        bloqueadoHasta = 0L
-    }
+    fun esperaPorIntentos(): Long = RateLimitStore.segundosRestantes(contexto)
 
     // ------------------------------------- bloqueo por inactividad en pantalla
 
@@ -213,12 +198,12 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             val chars = password.toCharArray()
             try {
                 withContext(Dispatchers.Default) { repositorio.desbloquear(chars) }
-                limpiarFallos()
+                RateLimitStore.limpiar(contexto)
                 registrarInteraccion()
                 irRaiz(Pantalla.Lista)
                 alTerminar(true)
             } catch (e: Exception) {
-                apuntarFallo()
+                RateLimitStore.registrarIntento(contexto)
                 _error.value = "Contraseña incorrecta"
                 alTerminar(false)
             } finally {
@@ -231,7 +216,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         ejecutar {
             try {
                 withContext(Dispatchers.Default) { repositorio.desbloquearConClaveMaestra(clave) }
-                limpiarFallos()
+                RateLimitStore.limpiar(contexto)
                 registrarInteraccion()
                 irRaiz(Pantalla.Lista)
                 alTerminar(true)
@@ -306,7 +291,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     // -------------------------------------------------------------- 2FA (TOTP)
 
     fun entradasConTotp(entradas: List<Entrada>): List<Entrada> =
-        entradas.filter { !it.secretoTotp.isNullOrBlank() }
+        entradas.filter { !it.secretoTotp.isNullOrEmpty() }
             .sortedBy { it.titulo.lowercase() }
 
     /**
@@ -426,17 +411,27 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun cambiarContrasenaMaestra(actual: String, nueva: String) {
+        val espera = esperaPorIntentos()
+        if (espera > 0) {
+            _error.value = "Demasiados intentos. Espera ${espera}s."
+            return
+        }
         ejecutar {
             val viejaChars = actual.toCharArray()
             val nuevaChars = nueva.toCharArray()
             try {
                 val correcta = withContext(Dispatchers.Default) { repositorio.verificarContrasena(viejaChars) }
                 if (!correcta) {
+                    RateLimitStore.registrarIntento(contexto)
                     _error.value = "La contraseña actual no es correcta"
                     return@ejecutar
                 }
                 withContext(Dispatchers.Default) { repositorio.cambiarContrasenaMaestra(nuevaChars) }
+                RateLimitStore.limpiar(contexto)
                 _aviso.value = "Contraseña maestra cambiada. Vuelve a activar la biometría."
+            } catch (e: Exception) {
+                RateLimitStore.registrarIntento(contexto)
+                throw e
             } finally {
                 Zeroizar.borrar(viejaChars)
                 Zeroizar.borrar(nuevaChars)

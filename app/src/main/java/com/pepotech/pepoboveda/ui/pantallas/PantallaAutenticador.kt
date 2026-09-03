@@ -83,7 +83,7 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
                 val codigo = remember(ahora / periodo, secreto, entrada.totpDigitos) {
                     try {
                         Totp.codigo(
-                            secreto = com.pepotech.pepoboveda.crypto.Base32.decodificar(secreto),
+                            secreto = secreto,
                             segundosUnix = ahora,
                             digitos = entrada.totpDigitos,
                             periodo = periodo

@@ -29,7 +29,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +56,7 @@ import com.pepotech.pepoboveda.ui.pantallas.PantallaOnboarding
 import com.pepotech.pepoboveda.ui.pantallas.PantallaPasskeys
 import com.pepotech.pepoboveda.ui.theme.Ambar
 import com.pepotech.pepoboveda.ui.theme.Obsidiana
+import com.pepotech.pepoboveda.ui.theme.Peligro
 import com.pepotech.pepoboveda.ui.theme.PepoBovedaTheme
 import com.pepotech.pepoboveda.ui.theme.SuperficieAlta
 import com.pepotech.pepoboveda.ui.theme.TextoPrincipal
@@ -97,6 +100,31 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
     val aviso by vm.aviso.collectAsStateWithLifecycle()
     val cuentaAtras by vm.cuentaAtrasPortapapeles.collectAsStateWithLifecycle()
     val anfitrion = remember { SnackbarHostState() }
+
+    // Detección de entorno comprometido (Root, Debugger, etc.)
+    val comprometido = remember { com.pepotech.pepoboveda.util.SeguridadApp.estaComprometido(actividad) }
+    var mostrarAvisoSeguridad by remember { androidx.compose.runtime.mutableStateOf(comprometido) }
+    if (mostrarAvisoSeguridad) {
+        AlertDialog(
+            onDismissRequest = { mostrarAvisoSeguridad = false },
+            containerColor = SuperficieAlta,
+            title = { Text("Entorno no seguro detectado", color = Peligro) },
+            text = {
+                Text(
+                    "He detectado señales de que este dispositivo está rooteado o tiene " +
+                        "herramientas de depuración activas. Esto pone en riesgo la seguridad " +
+                        "de tus contraseñas, ya que otras apps podrían leer la memoria.\n\n" +
+                        "Usa Pepo Bóveda bajo tu propia responsabilidad en este terminal.",
+                    color = TextoSecundario
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { mostrarAvisoSeguridad = false }) {
+                    Text("Entendido", color = Ambar)
+                }
+            }
+        )
+    }
 
     // Sin esto, atrás cerraba la app desde generador, passkeys o ajustes.
     // En lista, desbloqueo y onboarding no lo tocamos: ahí atrás sí sale de la app

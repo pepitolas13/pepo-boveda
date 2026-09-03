@@ -191,6 +191,8 @@ object WebAuthn {
         val algoritmosSoportados: Boolean
     )
 
+    private const val LONGITUD_MINIMA_RETO = 16
+
     fun leerCreacion(requestJson: String): PeticionCreacion {
         val raiz = JSONObject(requestJson)
         val rp = raiz.optJSONObject("rp") ?: JSONObject()
@@ -202,12 +204,15 @@ object WebAuthn {
                 if (parametros.optJSONObject(i)?.optInt("alg") == ALGORITMO) soportado = true
             }
         }
+        val reto = raiz.optString("challenge")
+        require(reto.isNotBlank()) { "El challenge no puede estar vacío" }
+        require(reto.length >= LONGITUD_MINIMA_RETO) { "El challenge es demasiado corto" }
         return PeticionCreacion(
             rpId = rp.optString("id"),
             rpName = rp.optString("name").ifBlank { rp.optString("id") },
             usuario = usuario.optString("name").ifBlank { usuario.optString("displayName") },
             userHandle = usuario.optString("id"),
-            reto = raiz.optString("challenge"),
+            reto = reto,
             algoritmosSoportados = soportado
         )
     }
@@ -226,9 +231,12 @@ object WebAuthn {
                 lista.optJSONObject(i)?.optString("id")?.takeIf { it.isNotBlank() }?.let { permitidas.add(it) }
             }
         }
+        val reto = raiz.optString("challenge")
+        require(reto.isNotBlank()) { "El challenge no puede estar vacío" }
+        require(reto.length >= LONGITUD_MINIMA_RETO) { "El challenge es demasiado corto" }
         return PeticionAsercion(
             rpId = raiz.optString("rpId"),
-            reto = raiz.optString("challenge"),
+            reto = reto,
             credencialesPermitidas = permitidas
         )
     }
