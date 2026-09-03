@@ -118,9 +118,16 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     /** Segundos que faltan para poder volver a probar. 0 si se puede probar ya. */
     fun esperaPorIntentos(): Long = FrenoIntentos.esperaSegundos(contextoApp)
 
-    private fun apuntarFallo() = FrenoIntentos.apuntarFallo(contextoApp)
+    // suspend y en IO: FrenoIntentos escribe con commit(), que es sincrono a
+    // proposito, y estas dos se llaman desde dentro de ejecutar{}, que corre en
+    // el hilo principal. Sin esto seria escritura a disco en el hilo de la UI.
+    private suspend fun apuntarFallo() = withContext(Dispatchers.IO) {
+        FrenoIntentos.apuntarFallo(contextoApp)
+    }
 
-    private fun limpiarFallos() = FrenoIntentos.limpiar(contextoApp)
+    private suspend fun limpiarFallos() = withContext(Dispatchers.IO) {
+        FrenoIntentos.limpiar(contextoApp)
+    }
 
     // ------------------------------------- bloqueo por inactividad en pantalla
 

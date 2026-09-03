@@ -63,7 +63,7 @@ class VaultRepository private constructor(contexto: Context) {
         // Argon2 fuera del candado.
         val nuevoSalt = VaultCrypto.nuevoSalt()
         val clave = VaultCrypto.derivarClave(password, nuevoSalt, KdfParams.PREDETERMINADOS)
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             if (claveMaestra != null) {
                 // Ya hay una bóveda abierta (doble toque en crear, o una carrera con
                 // el desbloqueo). Crear encima la vaciaría entera.
@@ -75,9 +75,8 @@ class VaultRepository private constructor(contexto: Context) {
             claveMaestra = clave
             contenido = ContenidoBoveda()
             persistir()
-            contenido
+            publicar()
         }
-        publicar(instantanea)
     }
 
     // ------------------------------------------------------------- desbloqueo
@@ -96,7 +95,7 @@ class VaultRepository private constructor(contexto: Context) {
         }
         val leido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             if (claveMaestra != null) {
                 // Alguien ha abierto la bóveda mientras derivábamos: otra pantalla, el
                 // autorrelleno o la huella. Su estado es más nuevo que el nuestro, que
@@ -112,9 +111,8 @@ class VaultRepository private constructor(contexto: Context) {
             params = cabecera.params
             claveMaestra = clave
             contenido = leido
-            contenido
+            publicar()
         }
-        publicar(instantanea)
     }
 
     fun desbloquearConClaveMaestra(clave: ByteArray) {
@@ -123,7 +121,7 @@ class VaultRepository private constructor(contexto: Context) {
         val plano = VaultCrypto.descifrar(bytes, clave)
         val leido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             // Misma guarda que en desbloquear(): aqui no hay Argon2, pero leer y
             // descifrar el archivo tampoco es instantaneo y la carrera es la misma.
             if (claveMaestra != null) return
@@ -131,19 +129,17 @@ class VaultRepository private constructor(contexto: Context) {
             params = cabecera.params
             claveMaestra = clave.copyOf()
             contenido = leido
-            contenido
+            publicar()
         }
-        publicar(instantanea)
     }
 
     fun bloquear() {
-        val sinCrear = synchronized(candado) {
+        synchronized(candado) {
             Zeroizar.borrar(claveMaestra)
             claveMaestra = null
             contenido = ContenidoBoveda()
-            !archivoBoveda.exists()
+            publicar()
         }
-        _estado.value = if (sinCrear) EstadoBoveda.SinCrear else EstadoBoveda.Bloqueada
     }
 
     // ------------------------------------------------------------------- CRUD
@@ -155,7 +151,7 @@ class VaultRepository private constructor(contexto: Context) {
     fun nuevoId(): String = UUID.randomUUID().toString()
 
     fun guardarEntrada(entrada: Entrada) {
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             val ahora = System.currentTimeMillis()
             val existente = contenido.entradas.indexOfFirst { it.id == entrada.id }
             val lista = contenido.entradas.toMutableList()
@@ -166,24 +162,22 @@ class VaultRepository private constructor(contexto: Context) {
             }
             contenido = contenido.copy(entradas = lista)
             persistir()
-            contenido
+            publicar()
         }
-        publicar(instantanea)
     }
 
     fun eliminarEntrada(id: String) {
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             contenido = contenido.copy(entradas = contenido.entradas.filterNot { it.id == id })
             persistir()
-            contenido
+            publicar()
         }
-        publicar(instantanea)
     }
 
     fun alternarFavorito(id: String) {
         // Leer y escribir tienen que ir juntos bajo el mismo candado: si no, dos
         // toques seguidos al corazón pueden acabar en el estado que no toca.
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             val entrada = contenido.entradas.firstOrNull { it.id == id } ?: return
             val lista = contenido.entradas.toMutableList()
             val posicion = lista.indexOfFirst { it.id == id }
@@ -193,9 +187,8 @@ class VaultRepository private constructor(contexto: Context) {
             )
             contenido = contenido.copy(entradas = lista)
             persistir()
-            contenido
+            publicar()
         }
-        publicar(instantanea)
     }
 
     fun passkeys(): List<Entrada> = contenido.entradas.filter { it.passkey != null }
@@ -214,10 +207,25 @@ class VaultRepository private constructor(contexto: Context) {
         Zeroizar.borrar(plano)
     }
 
-    // Fuera del candado a propósito: publicar despierta a quien esté mirando el
-    // StateFlow, y no hace falta tenerlos esperando al candado para eso.
-    private fun publicar(instantanea: ContenidoBoveda) {
-        _estado.value = EstadoBoveda.Desbloqueada(instantanea.entradas)
+    /**
+     * Solo se llama con el candado cogido, y el estado sale de los campos de
+     * verdad, no de una foto que traiga quien llama.
+     *
+     * Publicar fuera del candado parecia mas fino, pero abre esto: guardarEntrada
+     * suelta el candado con su instantanea en la mano, entre medias el auto-bloqueo
+     * cierra la boveda desde el hilo principal, y al publicar despues se anuncia
+     * Desbloqueada con la lista entera de una boveda que ya esta cerrada. Al volver
+     * a la app se verian las contrasenas sin pedir nada.
+     *
+     * Aqui dentro, cualquier transicion de estado va serializada con el cambio que
+     * la provoca y no se pueden adelantar unas a otras.
+     */
+    private fun publicar() {
+        _estado.value = when {
+            claveMaestra != null -> EstadoBoveda.Desbloqueada(contenido.entradas)
+            archivoBoveda.exists() -> EstadoBoveda.Bloqueada
+            else -> EstadoBoveda.SinCrear
+        }
     }
 
     // ------------------------------------------------ exportación e importación
@@ -251,7 +259,7 @@ class VaultRepository private constructor(contexto: Context) {
         val importado = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
         var nuevas = 0
-        val instantanea = synchronized(candado) {
+        synchronized(candado) {
             if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
             val porId = contenido.entradas.associateBy { it.id }.toMutableMap()
             importado.entradas.forEach { entrada ->
@@ -263,9 +271,8 @@ class VaultRepository private constructor(contexto: Context) {
             }
             contenido = contenido.copy(entradas = porId.values.sortedBy { it.titulo.lowercase() })
             persistir()
-            contenido
+            publicar()
         }
-        publicar(instantanea)
         return nuevas
     }
 
@@ -316,12 +323,12 @@ class VaultRepository private constructor(contexto: Context) {
             claveMaestra = null
             contenido = ContenidoBoveda()
             archivoBoveda.delete()
+            publicar()
         }
         desactivarBiometria()
         FrenoIntentos.limpiar(app)
         // El registro de diagnóstico no lleva secretos, pero sí fechas de uso: se va con todo.
         Diagnostico.borrar()
-        _estado.value = EstadoBoveda.SinCrear
     }
 
     companion object {
