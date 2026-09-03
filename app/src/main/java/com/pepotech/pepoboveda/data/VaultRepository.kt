@@ -12,6 +12,21 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.util.UUID
 
+/**
+ * Una sola bóveda para todo el proceso.
+ *
+ * Sobre hilos: esto lo tocan tres sitios a la vez. La pantalla va por
+ * Dispatchers.IO y Dispatchers.Default, el servicio de autorrelleno guarda desde
+ * onSaveRequest, y PasskeyCreateActivity guarda desde el hilo principal. Sin
+ * candado, dos guardados a la vez pueden perder uno o dejar el .bvda a medias.
+ *
+ * El candado va solo sobre el cambio de estado y la escritura del archivo. Derivar
+ * la clave con Argon2 tarda más de un segundo y se hace SIEMPRE fuera: si entrase
+ * dentro, importar una copia en segundo plano congelaría el guardado de una passkey
+ * en el hilo principal el tiempo que dure el Argon2, que es un ANR con todas las
+ * letras. Los campos son @Volatile para que las lecturas sueltas (entradas(),
+ * estaDesbloqueada) vean el último valor sin pedir el candado.
+ */
 class VaultRepository private constructor(contexto: Context) {
 
     private val app = contexto.applicationContext
@@ -22,10 +37,13 @@ class VaultRepository private constructor(contexto: Context) {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-    private var claveMaestra: ByteArray? = null
-    private var salt: ByteArray = ByteArray(VaultCrypto.TAM_SALT)
-    private var params: KdfParams = KdfParams.PREDETERMINADOS
-    private var contenido: ContenidoBoveda = ContenidoBoveda()
+    /** Protege claveMaestra, salt, params, contenido y la escritura del archivo. */
+    private val candado = Any()
+
+    @Volatile private var claveMaestra: ByteArray? = null
+    @Volatile private var salt: ByteArray = ByteArray(VaultCrypto.TAM_SALT)
+    @Volatile private var params: KdfParams = KdfParams.PREDETERMINADOS
+    @Volatile private var contenido: ContenidoBoveda = ContenidoBoveda()
 
     private val _estado = MutableStateFlow<EstadoBoveda>(
         if (archivoBoveda.exists()) EstadoBoveda.Bloqueada else EstadoBoveda.SinCrear
@@ -42,19 +60,25 @@ class VaultRepository private constructor(contexto: Context) {
     // ---------------------------------------------------------------- creación
 
     fun crear(password: CharArray) {
+        // Argon2 fuera del candado.
         val nuevoSalt = VaultCrypto.nuevoSalt()
         val clave = VaultCrypto.derivarClave(password, nuevoSalt, KdfParams.PREDETERMINADOS)
-        salt = nuevoSalt
-        params = KdfParams.PREDETERMINADOS
-        claveMaestra = clave
-        contenido = ContenidoBoveda()
-        persistir()
-        publicar()
+        val instantanea = synchronized(candado) {
+            salt = nuevoSalt
+            params = KdfParams.PREDETERMINADOS
+            claveMaestra = clave
+            contenido = ContenidoBoveda()
+            persistir()
+            contenido
+        }
+        publicar(instantanea)
     }
 
     // ------------------------------------------------------------- desbloqueo
 
     fun desbloquear(password: CharArray) {
+        // Leer, derivar, descifrar y parsear no tocan el estado del repositorio:
+        // todo eso va fuera del candado, que es lo caro.
         val bytes = archivoBoveda.readBytes()
         val cabecera = VaultCrypto.leerCabecera(bytes)
         val clave = VaultCrypto.derivarClave(password, cabecera.salt, cabecera.params)
@@ -64,31 +88,42 @@ class VaultRepository private constructor(contexto: Context) {
             Zeroizar.borrar(clave)
             throw e
         }
-        salt = cabecera.salt
-        params = cabecera.params
-        claveMaestra = clave
-        contenido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
+        val leido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
-        publicar()
+        val instantanea = synchronized(candado) {
+            salt = cabecera.salt
+            params = cabecera.params
+            claveMaestra = clave
+            contenido = leido
+            contenido
+        }
+        publicar(instantanea)
     }
 
     fun desbloquearConClaveMaestra(clave: ByteArray) {
         val bytes = archivoBoveda.readBytes()
         val cabecera = VaultCrypto.leerCabecera(bytes)
         val plano = VaultCrypto.descifrar(bytes, clave)
-        salt = cabecera.salt
-        params = cabecera.params
-        claveMaestra = clave.copyOf()
-        contenido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
+        val leido = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
-        publicar()
+        val instantanea = synchronized(candado) {
+            salt = cabecera.salt
+            params = cabecera.params
+            claveMaestra = clave.copyOf()
+            contenido = leido
+            contenido
+        }
+        publicar(instantanea)
     }
 
     fun bloquear() {
-        Zeroizar.borrar(claveMaestra)
-        claveMaestra = null
-        contenido = ContenidoBoveda()
-        _estado.value = if (archivoBoveda.exists()) EstadoBoveda.Bloqueada else EstadoBoveda.SinCrear
+        val sinCrear = synchronized(candado) {
+            Zeroizar.borrar(claveMaestra)
+            claveMaestra = null
+            contenido = ContenidoBoveda()
+            !archivoBoveda.exists()
+        }
+        _estado.value = if (sinCrear) EstadoBoveda.SinCrear else EstadoBoveda.Bloqueada
     }
 
     // ------------------------------------------------------------------- CRUD
@@ -100,28 +135,47 @@ class VaultRepository private constructor(contexto: Context) {
     fun nuevoId(): String = UUID.randomUUID().toString()
 
     fun guardarEntrada(entrada: Entrada) {
-        val ahora = System.currentTimeMillis()
-        val existente = contenido.entradas.indexOfFirst { it.id == entrada.id }
-        val lista = contenido.entradas.toMutableList()
-        if (existente >= 0) {
-            lista[existente] = entrada.copy(modificadaEn = ahora, creadaEn = lista[existente].creadaEn)
-        } else {
-            lista.add(entrada.copy(creadaEn = ahora, modificadaEn = ahora))
+        val instantanea = synchronized(candado) {
+            val ahora = System.currentTimeMillis()
+            val existente = contenido.entradas.indexOfFirst { it.id == entrada.id }
+            val lista = contenido.entradas.toMutableList()
+            if (existente >= 0) {
+                lista[existente] = entrada.copy(modificadaEn = ahora, creadaEn = lista[existente].creadaEn)
+            } else {
+                lista.add(entrada.copy(creadaEn = ahora, modificadaEn = ahora))
+            }
+            contenido = contenido.copy(entradas = lista)
+            persistir()
+            contenido
         }
-        contenido = contenido.copy(entradas = lista)
-        persistir()
-        publicar()
+        publicar(instantanea)
     }
 
     fun eliminarEntrada(id: String) {
-        contenido = contenido.copy(entradas = contenido.entradas.filterNot { it.id == id })
-        persistir()
-        publicar()
+        val instantanea = synchronized(candado) {
+            contenido = contenido.copy(entradas = contenido.entradas.filterNot { it.id == id })
+            persistir()
+            contenido
+        }
+        publicar(instantanea)
     }
 
     fun alternarFavorito(id: String) {
-        val entrada = entrada(id) ?: return
-        guardarEntrada(entrada.copy(favorito = !entrada.favorito))
+        // Leer y escribir tienen que ir juntos bajo el mismo candado: si no, dos
+        // toques seguidos al corazón pueden acabar en el estado que no toca.
+        val instantanea = synchronized(candado) {
+            val entrada = contenido.entradas.firstOrNull { it.id == id } ?: return
+            val lista = contenido.entradas.toMutableList()
+            val posicion = lista.indexOfFirst { it.id == id }
+            lista[posicion] = entrada.copy(
+                favorito = !entrada.favorito,
+                modificadaEn = System.currentTimeMillis()
+            )
+            contenido = contenido.copy(entradas = lista)
+            persistir()
+            contenido
+        }
+        publicar(instantanea)
     }
 
     fun passkeys(): List<Entrada> = contenido.entradas.filter { it.passkey != null }
@@ -131,6 +185,7 @@ class VaultRepository private constructor(contexto: Context) {
 
     // ------------------------------------------------------------ persistencia
 
+    /** Solo se llama con el candado cogido. */
     private fun persistir() {
         val clave = claveMaestra ?: throw IllegalStateException("La bóveda está bloqueada")
         val plano = json.encodeToString(ContenidoBoveda.serializer(), contenido).toByteArray(Charsets.UTF_8)
@@ -139,17 +194,23 @@ class VaultRepository private constructor(contexto: Context) {
         Zeroizar.borrar(plano)
     }
 
-    private fun publicar() {
-        _estado.value = EstadoBoveda.Desbloqueada(contenido.entradas)
+    // Fuera del candado a propósito: publicar despierta a quien esté mirando el
+    // StateFlow, y no hace falta tenerlos esperando al candado para eso.
+    private fun publicar(instantanea: ContenidoBoveda) {
+        _estado.value = EstadoBoveda.Desbloqueada(instantanea.entradas)
     }
 
     // ------------------------------------------------ exportación e importación
 
     fun exportar(passwordExportacion: CharArray): ByteArray {
-        if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+        // La foto del contenido se coge con el candado; el Argon2 y el cifrado, fuera.
+        val instantanea = synchronized(candado) {
+            if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+            contenido
+        }
         val saltExport = VaultCrypto.nuevoSalt()
         val clave = VaultCrypto.derivarClave(passwordExportacion, saltExport, KdfParams.PREDETERMINADOS)
-        val plano = json.encodeToString(ContenidoBoveda.serializer(), contenido).toByteArray(Charsets.UTF_8)
+        val plano = json.encodeToString(ContenidoBoveda.serializer(), instantanea).toByteArray(Charsets.UTF_8)
         val salida = VaultCrypto.cifrar(plano, clave, saltExport, KdfParams.PREDETERMINADOS)
         Zeroizar.borrar(plano)
         Zeroizar.borrar(clave)
@@ -159,6 +220,7 @@ class VaultRepository private constructor(contexto: Context) {
     /** Devuelve el número de entradas importadas (fusiona por id). */
     fun importar(archivo: ByteArray, passwordExportacion: CharArray): Int {
         if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+        // Descifrar el archivo que llega no toca el estado: fuera del candado.
         val cabecera = VaultCrypto.leerCabecera(archivo)
         val clave = VaultCrypto.derivarClave(passwordExportacion, cabecera.salt, cabecera.params)
         val plano = try {
@@ -168,30 +230,41 @@ class VaultRepository private constructor(contexto: Context) {
         }
         val importado = json.decodeFromString(ContenidoBoveda.serializer(), String(plano, Charsets.UTF_8))
         Zeroizar.borrar(plano)
-        val porId = contenido.entradas.associateBy { it.id }.toMutableMap()
         var nuevas = 0
-        importado.entradas.forEach { entrada ->
-            val previa = porId[entrada.id]
-            if (previa == null || entrada.modificadaEn > previa.modificadaEn) {
-                porId[entrada.id] = entrada
-                nuevas++
+        val instantanea = synchronized(candado) {
+            if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+            val porId = contenido.entradas.associateBy { it.id }.toMutableMap()
+            importado.entradas.forEach { entrada ->
+                val previa = porId[entrada.id]
+                if (previa == null || entrada.modificadaEn > previa.modificadaEn) {
+                    porId[entrada.id] = entrada
+                    nuevas++
+                }
             }
+            contenido = contenido.copy(entradas = porId.values.sortedBy { it.titulo.lowercase() })
+            persistir()
+            contenido
         }
-        contenido = contenido.copy(entradas = porId.values.sortedBy { it.titulo.lowercase() })
-        persistir()
-        publicar()
+        publicar(instantanea)
         return nuevas
     }
 
     fun cambiarContrasenaMaestra(nueva: CharArray) {
         if (claveMaestra == null) throw IllegalStateException("La bóveda está bloqueada")
+        // Argon2 fuera; el cambio de clave y el reescribir el archivo, dentro.
         val nuevoSalt = VaultCrypto.nuevoSalt()
         val claveNueva = VaultCrypto.derivarClave(nueva, nuevoSalt, KdfParams.PREDETERMINADOS)
-        Zeroizar.borrar(claveMaestra)
-        claveMaestra = claveNueva
-        salt = nuevoSalt
-        params = KdfParams.PREDETERMINADOS
-        persistir()
+        synchronized(candado) {
+            if (claveMaestra == null) {
+                Zeroizar.borrar(claveNueva)
+                throw IllegalStateException("La bóveda está bloqueada")
+            }
+            Zeroizar.borrar(claveMaestra)
+            claveMaestra = claveNueva
+            salt = nuevoSalt
+            params = KdfParams.PREDETERMINADOS
+            persistir()
+        }
         desactivarBiometria()
     }
 
@@ -201,6 +274,8 @@ class VaultRepository private constructor(contexto: Context) {
         ajustes.actualizar { it.copy(biometriaActiva = false, biometriaModo = "") }
     }
 
+    // No toca el estado del repositorio, solo lee el archivo: sin candado, y así
+    // comprobar la clave actual no bloquea a nadie durante el Argon2.
     fun verificarContrasena(password: CharArray): Boolean = try {
         val bytes = archivoBoveda.readBytes()
         val cabecera = VaultCrypto.leerCabecera(bytes)
@@ -216,9 +291,14 @@ class VaultRepository private constructor(contexto: Context) {
     }
 
     fun borrarTodo() {
-        bloquear()
-        archivoBoveda.delete()
+        synchronized(candado) {
+            Zeroizar.borrar(claveMaestra)
+            claveMaestra = null
+            contenido = ContenidoBoveda()
+            archivoBoveda.delete()
+        }
         desactivarBiometria()
+        FrenoIntentos.limpiar(app)
         // El registro de diagnóstico no lleva secretos, pero sí fechas de uso: se va con todo.
         Diagnostico.borrar()
         _estado.value = EstadoBoveda.SinCrear
@@ -230,7 +310,7 @@ class VaultRepository private constructor(contexto: Context) {
 
         fun obtener(contexto: Context): VaultRepository =
             instancia ?: synchronized(this) {
-                instancia ?: VaultRepository(contexto).also { instancia = it }
+                instancia ?: VaultRepository(contexto.applicationContext).also { instancia = it }
             }
     }
 }
