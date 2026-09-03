@@ -121,14 +121,24 @@ object Diagnostico {
         recientes.forEach { append(it).append('\n') }
     }
 
+    /**
+     * Las rutas del sistema de archivos no son un secreto, pero sí dicen quién eres
+     * (usuario, perfil de trabajo, nombre del móvil) y acaban en el informe que la
+     * gente pega en un issue. Fuera de los mensajes de error.
+     */
+    private val PATRON_RUTA =
+        Regex("""(?:/data/data/|/data/user/\d*/?|/storage/emulated/\d*/?|/sdcard/)[^\s"']*""")
+
+    private fun sinRutas(texto: String): String = PATRON_RUTA.replace(texto, "<ruta>")
+
     /** Clase simple y mensaje, siguiendo las causas hasta tres niveles. */
     fun describir(e: Throwable): String {
         val partes = ArrayList<String>()
         var actual: Throwable? = e
         var nivel = 0
         while (actual != null && nivel < 3) {
-            val mensaje = actual.message?.replace('\n', ' ')?.take(160)
-            partes += if (mensaje.isNullOrBlank()) {
+            val mensaje = sinRutas(actual.message ?: "").replace('\n', ' ').take(160)
+            partes += if (mensaje.isBlank()) {
                 actual.javaClass.simpleName
             } else {
                 "${actual.javaClass.simpleName}: $mensaje"
