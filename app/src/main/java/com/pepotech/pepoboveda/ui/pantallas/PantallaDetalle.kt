@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.animation.AnimatedVisibility
+
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
@@ -70,9 +73,9 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
 
     if (entrada == null) {
         Column(modifier = Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
-            Text("Esta entrada ya no está en la bóveda", color = TextoSecundario)
+            Text(stringResource(R.string.error_entrada_no_existe), color = TextoSecundario)
             Spacer(Modifier.height(16.dp))
-            BotonBorde("Volver") { vm.volverALista() }
+            BotonBorde(stringResource(R.string.accion_volver)) { vm.volverALista() }
         }
         return
     }
@@ -98,11 +101,11 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
             )
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(entrada.titulo.ifBlank { "Sin título" }, style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
+                Text(entrada.titulo.ifBlank { stringResource(R.string.sin_titulo) }, style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
                 Text(entrada.tipo.etiqueta, style = MaterialTheme.typography.bodyMedium, color = TextoSecundario)
             }
             IconButton(onClick = { haptica.tic(); vm.alternarFavorito(entrada.id) }) {
-                Icon(Icons.Filled.Star, contentDescription = "Favorito", tint = if (entrada.favorito) Ambar else Borde)
+                Icon(Icons.Filled.Star, contentDescription = stringResource(R.string.desc_favorito), tint = if (entrada.favorito) Ambar else Borde)
             }
         }
 
@@ -110,13 +113,13 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
 
         if (entrada.usuario.isNotBlank()) {
             TarjetaPepo {
-                EtiquetaSeccion("Usuario")
+                EtiquetaSeccion(stringResource(R.string.label_usuario))
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(entrada.usuario, style = EstiloMono, color = TextoPrincipal, modifier = Modifier.weight(1f))
                     BotonCopiar(copiado = ultimaCopia == "usuario") {
                         haptica.toque()
-                        vm.copiar("Usuario", entrada.usuario, sensible = false)
+                        vm.copiar(contexto.getString(R.string.label_usuario), entrada.usuario, sensible = false)
                         ultimaCopia = "usuario"
                     }
                 }
@@ -126,7 +129,7 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
 
         if (entrada.contrasena.isNotBlank()) {
             TarjetaPepo {
-                EtiquetaSeccion("Contraseña")
+                EtiquetaSeccion(stringResource(R.string.label_contrasena))
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -142,13 +145,13 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
                     )
                     BotonCopiar(copiado = ultimaCopia == "contrasena") {
                         haptica.exito()
-                        vm.copiar("Contraseña", entrada.contrasena, sensible = true)
+                        vm.copiar(contexto.getString(R.string.label_contrasena), entrada.contrasena, sensible = true)
                         ultimaCopia = "contrasena"
                     }
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (revelada) "Pulsa el texto para volver a ocultarla" else "Pulsa el texto para revelarla",
+                    if (revelada) stringResource(R.string.ayuda_ocultar) else stringResource(R.string.ayuda_revelar),
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextoSecundario
                 )
@@ -172,17 +175,17 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
                 }
             }
             TarjetaPepo {
-                EtiquetaSeccion("Código de verificación (TOTP)")
+                EtiquetaSeccion(stringResource(R.string.label_totp))
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     AnilloTotp(codigo = codigo, segundosRestantes = Totp.segundosRestantes(ahora))
                     Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Se renueva cada 30 s", color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
+                        Text(stringResource(R.string.ayuda_totp_renovacion), color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
                         Spacer(Modifier.height(8.dp))
-                        BotonBorde("Copiar código", color = Menta) {
+                        BotonBorde(stringResource(R.string.accion_copiar_codigo), color = Menta) {
                             haptica.toque()
-                            vm.copiar("Código TOTP", codigo, sensible = true)
+                            vm.copiar(contexto.getString(R.string.label_totp), codigo, sensible = true)
                         }
                     }
                 }
@@ -192,7 +195,7 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
 
         if (entrada.urls.isNotEmpty()) {
             TarjetaPepo {
-                EtiquetaSeccion("Sitios y apps asociados")
+                EtiquetaSeccion(stringResource(R.string.label_asociados))
                 Spacer(Modifier.height(8.dp))
                 entrada.urls.forEach { url ->
                     Text(url, style = MaterialTheme.typography.bodyLarge, color = TextoPrincipal)
@@ -203,7 +206,7 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
 
         if (entrada.notas.isNotBlank()) {
             TarjetaPepo {
-                EtiquetaSeccion("Notas")
+                EtiquetaSeccion(stringResource(R.string.label_notas))
                 Spacer(Modifier.height(8.dp))
                 Text(entrada.notas, style = MaterialTheme.typography.bodyLarge, color = TextoPrincipal)
             }
@@ -212,40 +215,40 @@ fun PantallaDetalle(vm: VaultViewModel, id: String) {
 
         entrada.passkey?.let { passkey ->
             TarjetaPepo {
-                EtiquetaSeccion("Passkey")
+                EtiquetaSeccion(stringResource(R.string.label_passkey))
                 Spacer(Modifier.height(8.dp))
-                Text("Servicio: ${passkey.rpName.ifBlank { passkey.rpId }}", color = TextoPrincipal, style = MaterialTheme.typography.bodyLarge)
-                Text("Dominio: ${passkey.rpId}", color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
-                Text("Algoritmo: ${passkey.algoritmo} (P-256)", color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
-                Text("La clave privada vive dentro del JSON cifrado de la bóveda.", color = Menta, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.label_servicio, passkey.rpName.ifBlank { passkey.rpId }), color = TextoPrincipal, style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.label_dominio, passkey.rpId), color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.label_algoritmo, "${passkey.algoritmo} (P-256)"), color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.info_passkey_segura), color = Menta, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(12.dp))
         }
 
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BotonBorde("Editar", modifier = Modifier.weight(1f)) { vm.ir(Pantalla.Editar(entrada.id)) }
-            BotonBorde("Borrar", modifier = Modifier.weight(1f), color = Peligro) { confirmarBorrado = true }
+            BotonBorde(stringResource(R.string.accion_editar), modifier = Modifier.weight(1f)) { vm.ir(Pantalla.Editar(entrada.id)) }
+            BotonBorde(stringResource(R.string.accion_borrar), modifier = Modifier.weight(1f), color = Peligro) { confirmarBorrado = true }
         }
         Spacer(Modifier.height(12.dp))
-        BotonBorde("Volver a la bóveda") { vm.volverALista() }
+        BotonBorde(stringResource(R.string.accion_volver_boveda)) { vm.volverALista() }
         Spacer(Modifier.height(40.dp))
     }
 
     if (confirmarBorrado) {
         AlertDialog(
             onDismissRequest = { confirmarBorrado = false },
-            title = { Text("¿Borrar esta entrada?") },
+            title = { Text(stringResource(R.string.titulo_borrar_entrada)) },
             text = { Text("Se elimina de la bóveda cifrada y no hay copia en ningún otro sitio.") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmarBorrado = false
                     haptica.error()
                     vm.eliminar(entrada.id)
-                }) { Text("Borrar", color = Peligro) }
+                }) { Text(stringResource(R.string.accion_borrar), color = Peligro) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmarBorrado = false }) { Text("Cancelar") }
+                TextButton(onClick = { confirmarBorrado = false }) { Text(stringResource(R.string.accion_cancelar)) }
             }
         )
     }
@@ -259,24 +262,24 @@ private fun BotonCopiar(copiado: Boolean, alPulsar: () -> Unit) {
             enter = scaleIn(spring(dampingRatio = 0.5f)),
             exit = scaleOut(spring(dampingRatio = 0.6f))
         ) {
-            Icon(Icons.Filled.Check, contentDescription = "Copiado", tint = Menta)
+            Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.desc_copiado), tint = Menta)
         }
         AnimatedVisibility(
             visible = !copiado,
             enter = scaleIn(spring(dampingRatio = 0.5f)),
             exit = scaleOut(spring(dampingRatio = 0.6f))
         ) {
-            Icon(Icons.Filled.ContentCopy, contentDescription = "Copiar", tint = Ambar)
+            Icon(Icons.Filled.ContentCopy, contentDescription = stringResource(R.string.desc_copiar), tint = Ambar)
         }
     }
 }
 
 @Composable
 private fun IconoEditar() {
-    Icon(Icons.Filled.Edit, contentDescription = "Editar", tint = Ambar)
+    Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.accion_editar), tint = Ambar)
 }
 
 @Composable
 private fun IconoBorrar() {
-    Icon(Icons.Filled.Delete, contentDescription = "Borrar", tint = Peligro)
+    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.accion_borrar), tint = Peligro)
 }

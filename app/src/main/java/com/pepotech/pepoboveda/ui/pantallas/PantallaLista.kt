@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.foundation.background
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -80,6 +83,11 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
     val entradas = (estado as? EstadoBoveda.Desbloqueada)?.entradas ?: emptyList()
     val visibles = remember(entradas, busqueda, filtro, soloFavoritos) { vm.entradasVisibles(entradas) }
 
+    val label2fa = stringResource(R.string.seccion_2fa)
+    val labelClaves = stringResource(R.string.seccion_claves)
+    val labelPasskeys = stringResource(R.string.seccion_passkeys)
+    val labelNotas = stringResource(R.string.seccion_notas)
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -89,35 +97,36 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Pepo Bóveda", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
                     Text(
-                        "${entradas.size} ${if (entradas.size == 1) "entrada" else "entradas"} cifradas aquí dentro",
+                        if (entradas.size == 1) stringResource(R.string.lista_recuento_sing)
+                        else stringResource(R.string.lista_recuento_plur, entradas.size),
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextoSecundario
                     )
                 }
                 IconButton(onClick = { vm.ir(Pantalla.Generador) }) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = "Generador", tint = Ambar)
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = stringResource(R.string.desc_generador), tint = Ambar)
                 }
                 if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                     IconButton(onClick = { vm.ir(Pantalla.Passkeys) }) {
-                        Icon(Icons.Filled.Fingerprint, contentDescription = "Passkeys", tint = TextoPrincipal)
+                        Icon(Icons.Filled.Fingerprint, contentDescription = stringResource(R.string.label_passkeys), tint = TextoPrincipal)
                     }
                 }
                 IconButton(onClick = { vm.ir(Pantalla.Autenticador) }) {
-                    Icon(Icons.Filled.Timer, contentDescription = "Autenticador 2FA", tint = TextoPrincipal)
+                    Icon(Icons.Filled.Timer, contentDescription = stringResource(R.string.desc_autenticador), tint = TextoPrincipal)
                 }
                 IconButton(onClick = { vm.ir(Pantalla.Ajustes) }) {
-                    Icon(Icons.Filled.Settings, contentDescription = "Ajustes", tint = TextoPrincipal)
+                    Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.label_ajustes), tint = TextoPrincipal)
                 }
                 IconButton(onClick = { haptica.toque(); vm.bloquear() }) {
-                    Icon(Icons.Filled.Lock, contentDescription = "Bloquear", tint = TextoPrincipal)
+                    Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.desc_bloquear), tint = TextoPrincipal)
                 }
             }
 
             Spacer(Modifier.height(12.dp))
             Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                CampoPepo(valor = busqueda, etiqueta = "Buscar", alCambiar = { vm.buscar(it) })
+                CampoPepo(valor = busqueda, etiqueta = stringResource(R.string.hint_busqueda), alCambiar = { vm.buscar(it) })
             }
             Spacer(Modifier.height(12.dp))
 
@@ -128,14 +137,14 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                ChipFiltro("Todo", filtro == null && !soloFavoritos) {
+                ChipFiltro(stringResource(R.string.filtro_todo), filtro == null && !soloFavoritos) {
                     vm.filtrarPorTipo(null)
                     if (soloFavoritos) vm.alternarSoloFavoritos()
                 }
-                ChipFiltro("Claves", filtro == TipoEntrada.LOGIN) { vm.filtrarPorTipo(if (filtro == TipoEntrada.LOGIN) null else TipoEntrada.LOGIN) }
-                ChipFiltro("Passkeys", filtro == TipoEntrada.PASSKEY) { vm.filtrarPorTipo(if (filtro == TipoEntrada.PASSKEY) null else TipoEntrada.PASSKEY) }
-                ChipFiltro("Notas", filtro == TipoEntrada.NOTA) { vm.filtrarPorTipo(if (filtro == TipoEntrada.NOTA) null else TipoEntrada.NOTA) }
-                ChipFiltro("�~.", soloFavoritos) { vm.alternarSoloFavoritos() }
+                ChipFiltro(stringResource(R.string.filtro_claves), filtro == TipoEntrada.LOGIN) { vm.filtrarPorTipo(if (filtro == TipoEntrada.LOGIN) null else TipoEntrada.LOGIN) }
+                ChipFiltro(stringResource(R.string.label_passkeys), filtro == TipoEntrada.PASSKEY) { vm.filtrarPorTipo(if (filtro == TipoEntrada.PASSKEY) null else TipoEntrada.PASSKEY) }
+                ChipFiltro(stringResource(R.string.filtro_notas), filtro == TipoEntrada.NOTA) { vm.filtrarPorTipo(if (filtro == TipoEntrada.NOTA) null else TipoEntrada.NOTA) }
+                ChipFiltro("⭐", soloFavoritos) { vm.alternarSoloFavoritos() }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -149,7 +158,7 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                         IlustracionVacio()
                     } else {
                         Text(
-                            "Nada coincide con esa búsqueda",
+                            stringResource(R.string.lista_vacia_busqueda),
                             style = MaterialTheme.typography.bodyLarge,
                             color = TextoSecundario,
                             modifier = Modifier.padding(horizontal = 24.dp)
@@ -176,10 +185,10 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                     }
 
                     listOf(
-                        "Doble factor" to conDobleFactor,
-                        "Contrase�as" to claves,
-                        "Llaves de acceso" to passkeys,
-                        "Notas" to notas
+                        label2fa to conDobleFactor,
+                        labelClaves to claves,
+                        labelPasskeys to passkeys,
+                        labelNotas to notas
                     ).forEach { (titulo, grupo) ->
                         if (grupo.isEmpty()) return@forEach
                         item(key = "cabecera-$titulo") {
@@ -196,16 +205,16 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                             alAbrir = { vm.ir(Pantalla.Detalle(entrada.id)) },
                             alCopiarUsuario = {
                                 haptica.toque()
-                                vm.copiar("Usuario", entrada.usuario, sensible = false)
+                                vm.copiar(contexto.getString(R.string.label_usuario), entrada.usuario, sensible = false)
                             },
                             alCopiarContrasena = {
                                 haptica.exito()
-                                vm.copiar("Contraseña", entrada.contrasena, sensible = true)
+                                vm.copiar(contexto.getString(R.string.label_contrasena), entrada.contrasena, sensible = true)
                             },
                             alFavorito = { haptica.tic(); vm.alternarFavorito(entrada.id) },
                             alCopiarCodigo = { codigo ->
                                 haptica.exito()
-                                vm.copiar("C�digo", codigo, sensible = true)
+                                vm.copiar(contexto.getString(R.string.label_codigo), codigo, sensible = true)
                             }
                         )
                         }
@@ -223,7 +232,7 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                 .align(Alignment.BottomEnd)
                 .padding(24.dp)
         ) {
-            Icon(Icons.Filled.Add, contentDescription = "Nueva entrada")
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.desc_nueva_entrada))
         }
     }
 }
@@ -279,8 +288,8 @@ private fun FilaEntrada(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Copiar usuario", color = Menta, style = MaterialTheme.typography.bodyMedium)
-                Text("Copiar contraseña", color = Ambar, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.accion_copiar_usuario), color = Menta, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.accion_copiar_contrasena), color = Ambar, style = MaterialTheme.typography.bodyMedium)
             }
         }
     ) {
@@ -300,7 +309,7 @@ private fun FilaEntrada(
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    entrada.titulo.ifBlank { "Sin título" },
+                    entrada.titulo.ifBlank { stringResource(R.string.sin_titulo) },
                     style = MaterialTheme.typography.titleMedium,
                     color = TextoPrincipal,
                     maxLines = 1
@@ -308,8 +317,8 @@ private fun FilaEntrada(
                 Text(
                     when (entrada.tipo) {
                         TipoEntrada.PASSKEY -> "Passkey · ${entrada.passkey?.rpId ?: ""}"
-                        TipoEntrada.NOTA -> "Nota segura"
-                        TipoEntrada.LOGIN -> entrada.usuario.ifBlank { entrada.urls.firstOrNull() ?: "Sin usuario" }
+                        TipoEntrada.NOTA -> stringResource(R.string.tipo_nota)
+                        TipoEntrada.LOGIN -> entrada.usuario.ifBlank { entrada.urls.firstOrNull() ?: stringResource(R.string.sin_usuario) }
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = TextoSecundario,
@@ -356,11 +365,10 @@ private fun FilaEntrada(
             IconButton(onClick = alFavorito, modifier = Modifier.size(40.dp)) {
                 Icon(
                     Icons.Filled.Star,
-                    contentDescription = "Favorito",
+                    contentDescription = stringResource(R.string.desc_favorito),
                     tint = if (entrada.favorito) Ambar else Borde
                 )
             }
         }
     }
 }
-

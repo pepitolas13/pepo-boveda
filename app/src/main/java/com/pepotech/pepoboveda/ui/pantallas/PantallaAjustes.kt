@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import android.net.Uri
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.biometric.BiometricManager
@@ -121,15 +124,14 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
             is FlujoBiometria.ResultadoActivacion.Activada -> {
                 haptica.exito()
                 vm.avisar(
-                    if (resultado.modo == BiometricKeyStore.Modo.FUERTE) "Huella activada en modo fuerte"
-                    else "Huella activada en modo compatible"
+                    if (resultado.modo == BiometricKeyStore.Modo.FUERTE) actividad.getString(R.string.aviso_huella_fuerte_ok)
+                    else actividad.getString(R.string.aviso_huella_compatible_ok)
                 )
             }
-            FlujoBiometria.ResultadoActivacion.Cancelada -> vm.avisar("Huella cancelada")
+            FlujoBiometria.ResultadoActivacion.Cancelada -> vm.avisar(actividad.getString(R.string.aviso_huella_cancelada))
             is FlujoBiometria.ResultadoActivacion.FuerteRota -> {
                 haptica.error()
-                dialogoCompatible = "Android acepta tu huella, pero el Keystore de este móvil la rechaza al usarla " +
-                    "(fallo típico de ROMs personalizadas). Detalle técnico: ${resultado.detalle}."
+                dialogoCompatible = actividad.getString(R.string.aviso_huella_fuerte_fallida)
             }
             is FlujoBiometria.ResultadoActivacion.Error -> {
                 haptica.error()
@@ -151,14 +153,14 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text("Ajustes", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+        Text(stringResource(R.string.titulo_ajustes), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
         Spacer(Modifier.height(18.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Seguridad")
+            EtiquetaSeccion(stringResource(R.string.seccion_seguridad))
             Spacer(Modifier.height(10.dp))
             FilaAjuste(
-                titulo = "Abrir con huella",
+                titulo = stringResource(R.string.ajuste_huella_titulo),
                 descripcion = when {
                     modoActivo != null -> "Activa en modo ${modoActivo.etiqueta}."
                     nivel == Biometria.Nivel.FUERTE ->
@@ -175,12 +177,12 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                         when (nivel) {
                             Biometria.Nivel.FUERTE -> activarFuerte()
                             Biometria.Nivel.COMPATIBLE -> ofrecerCompatible(Biometria.explicarFaltaDeFuerte(capacidad))
-                            Biometria.Nivel.NINGUNO -> vm.avisar("Este móvil no ofrece huella ni PIN utilizables ahora mismo")
+                            Biometria.Nivel.NINGUNO -> vm.avisar(actividad.getString(R.string.error_sin_biometria))
                         }
                     } else {
                         flujo.desactivar()
                         haptica.tic()
-                        vm.avisar("Huella desactivada")
+                        vm.avisar(actividad.getString(R.string.aviso_huella_desactivada))
                     }
                 }
             )
@@ -188,24 +190,24 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                 capacidad.debil != BiometricManager.BIOMETRIC_SUCCESS
             ) {
                 Spacer(Modifier.height(10.dp))
-                BotonBorde("Registrar una huella en Android") {
-                    if (!AjustesSistema.abrirRegistroHuella(contexto)) vm.avisar("No encuentro esa pantalla en este móvil")
+                BotonBorde(stringResource(R.string.accion_registrar_huella)) {
+                    if (!AjustesSistema.abrirRegistroHuella(contexto)) vm.avisar(actividad.getString(R.string.error_pantalla_no_encontrada))
                 }
             }
             when {
                 ajustes.biometriaActiva && modoActivo == BiometricKeyStore.Modo.FUERTE && Biometria.hayCompatible(capacidad) ->
-                    EnlaceAjuste("Cambiar a modo compatible") {
+                    EnlaceAjuste(stringResource(R.string.accion_cambiar_compatible)) {
                         ofrecerCompatible("Si la huella te falla en este móvil aunque Android la acepte, el modo compatible suele funcionar.")
                     }
                 ajustes.biometriaActiva && modoActivo == BiometricKeyStore.Modo.COMPATIBLE && Biometria.hayFuerte(capacidad) ->
-                    EnlaceAjuste("Volver al modo fuerte") { activarFuerte() }
+                    EnlaceAjuste(stringResource(R.string.accion_volver_fuerte)) { activarFuerte() }
                 !ajustes.biometriaActiva && nivel == Biometria.Nivel.FUERTE && Biometria.hayCompatible(capacidad) ->
-                    EnlaceAjuste("Activar en modo compatible") {
+                    EnlaceAjuste(stringResource(R.string.accion_activar_compatible)) {
                         ofrecerCompatible("Para quien ya sabe que la huella de Clase 3 le falla en este móvil.")
                     }
             }
             Spacer(Modifier.height(14.dp))
-            EtiquetaSeccion("Bloqueo automático")
+            EtiquetaSeccion(stringResource(R.string.seccion_bloqueo_auto))
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 AlmacenAjustes.OPCIONES_AUTO_BLOQUEO.forEach { (segundos, etiqueta) ->
@@ -216,7 +218,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                 }
             }
             Spacer(Modifier.height(14.dp))
-            EtiquetaSeccion("Borrado del portapapeles")
+            EtiquetaSeccion(stringResource(R.string.seccion_borrado_portapapeles))
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 AlmacenAjustes.OPCIONES_PORTAPAPELES.forEach { (segundos, etiqueta) ->
@@ -231,7 +233,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         Spacer(Modifier.height(16.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Cámara del escáner")
+            EtiquetaSeccion(stringResource(R.string.seccion_camara))
             Spacer(Modifier.height(8.dp))
             Text(
                 "Automático prueba CameraX y, si falla, pasa solo al motor compatible. Si la imagen sale negra o no lee nada, fuerza el compatible: usa la API antigua de cámara, que funciona hasta en los móviles más raros. Y si nada va, siempre puedes leer el QR desde una captura.",
@@ -252,7 +254,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         Spacer(Modifier.height(16.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Copia de seguridad")
+            EtiquetaSeccion(stringResource(R.string.seccion_backup))
             Spacer(Modifier.height(8.dp))
             Text(
                 "El archivo exportado va cifrado con su propia contraseña y con Argon2id. Sin esa contraseña es ruido.",
@@ -260,15 +262,15 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(Modifier.height(12.dp))
-            BotonBorde("Exportar bóveda cifrada") { dialogoExportar = true }
+            BotonBorde(stringResource(R.string.accion_exportar)) { dialogoExportar = true }
             Spacer(Modifier.height(10.dp))
-            BotonBorde("Importar copia") {
+            BotonBorde(stringResource(R.string.accion_importar)) {
                 PepoBovedaApp.salidaPendiente(contexto)
                 try {
                     lanzadorAbrir.launch(arrayOf("*/*"))
                 } catch (e: Exception) {
                     PepoBovedaApp.salidaTerminada(contexto)
-                    vm.avisar("Este móvil no tiene ningún selector de archivos que pueda abrir")
+                    vm.avisar(contexto.getString(R.string.error_sin_selector_archivos))
                 }
             }
         }
@@ -276,15 +278,15 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         Spacer(Modifier.height(16.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Contraseña maestra")
+            EtiquetaSeccion(stringResource(R.string.seccion_maestra))
             Spacer(Modifier.height(10.dp))
-            BotonBorde("Cambiar contraseña maestra") { dialogoCambio = true }
+            BotonBorde(stringResource(R.string.accion_cambiar_maestra)) { dialogoCambio = true }
         }
 
         Spacer(Modifier.height(16.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Passkeys")
+            EtiquetaSeccion(stringResource(R.string.label_passkeys))
             Spacer(Modifier.height(10.dp))
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 Text(
@@ -293,7 +295,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(10.dp))
-                BotonBorde("Ver mis passkeys") { vm.ir(Pantalla.Passkeys) }
+                BotonBorde(stringResource(R.string.accion_ver_passkeys)) { vm.ir(Pantalla.Passkeys) }
             } else {
                 Text(
                     "Esta sección está oculta porque tu Android es anterior al 14. La API que permite a una app ser proveedora de passkeys del sistema (CredentialProviderService) llegó en Android 14; sin ella nadie puede ofrecerte passkeys de verdad, así que preferimos no fingirlo. Todo lo demás funciona igual.",
@@ -308,19 +310,19 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         TarjetaPepo {
             EtiquetaSeccion("Transparencia")
             Spacer(Modifier.height(10.dp))
-            BotonBorde("Audítame") { vm.ir(Pantalla.AcercaDe) }
+            BotonBorde(stringResource(R.string.accion_auditar)) { vm.ir(Pantalla.AcercaDe) }
         }
 
         Spacer(Modifier.height(16.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Zona peligrosa")
+            EtiquetaSeccion(stringResource(R.string.seccion_peligro))
             Spacer(Modifier.height(10.dp))
-            BotonBorde("Borrar la bóveda de este dispositivo", color = Peligro) { dialogoBorrar = true }
+            BotonBorde(stringResource(R.string.accion_borrar_boveda), color = Peligro) { dialogoBorrar = true }
         }
 
         Spacer(Modifier.height(20.dp))
-        BotonBorde("Volver") { vm.volverALista() }
+        BotonBorde(stringResource(R.string.accion_volver)) { vm.volverALista() }
         Spacer(Modifier.height(40.dp))
     }
 
@@ -328,7 +330,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
         AlertDialog(
             onDismissRequest = { dialogoCompatible = null },
             containerColor = SuperficieAlta,
-            title = { Text("Modo compatible", color = TextoPrincipal) },
+            title = { Text(stringResource(R.string.titulo_compatible), color = TextoPrincipal) },
             text = {
                 Text(
                     motivo + "\n\nEn este modo la huella o el PIN los comprueba Android y la app abre la bóveda. " +
@@ -343,19 +345,19 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                 TextButton(onClick = {
                     dialogoCompatible = null
                     flujo.activar(BiometricKeyStore.Modo.COMPATIBLE, ::tratarActivacion)
-                }) { Text("Activar modo compatible", color = Ambar) }
+                }) { Text(stringResource(R.string.accion_confirmar_compatible), color = Ambar) }
             },
             dismissButton = {
-                TextButton(onClick = { dialogoCompatible = null }) { Text("Ahora no", color = TextoSecundario) }
+                TextButton(onClick = { dialogoCompatible = null }) { Text(stringResource(R.string.accion_ahora_no), color = TextoSecundario) }
             }
         )
     }
 
     if (dialogoExportar) {
         DialogoContrasena(
-            titulo = "Contraseña de la copia",
+            titulo = stringResource(R.string.titulo_pass_copia),
             descripcion = "Elige una contraseña solo para este archivo. Apúntala donde toque: sin ella la copia no se abre.",
-            textoBoton = "Exportar",
+            textoBoton = stringResource(R.string.accion_exportar_btn),
             alConfirmar = { clave ->
                 passwordExportacion = clave
                 dialogoExportar = false
@@ -365,7 +367,7 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                 } catch (e: Exception) {
                     PepoBovedaApp.salidaTerminada(contexto)
                     passwordExportacion = ""
-                    vm.avisar("Este móvil no tiene ningún selector de archivos que pueda abrir")
+                    vm.avisar(actividad.getString(R.string.error_sin_selector_archivos))
                 }
             },
             alCancelar = { dialogoExportar = false }
@@ -374,9 +376,9 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
 
     if (dialogoImportar) {
         DialogoContrasena(
-            titulo = "Contraseña de la copia",
+            titulo = stringResource(R.string.titulo_pass_copia),
             descripcion = "Escribe la contraseña con la que cifraste ese archivo.",
-            textoBoton = "Importar",
+            textoBoton = stringResource(R.string.accion_importar_btn),
             alConfirmar = { clave ->
                 val uri = uriPendiente
                 dialogoImportar = false
@@ -395,12 +397,12 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
     if (dialogoCambio) {
         AlertDialog(
             onDismissRequest = { dialogoCambio = false },
-            title = { Text("Cambiar contraseña maestra") },
+            title = { Text(stringResource(R.string.accion_cambiar_maestra)) },
             text = {
                 Column {
-                    CampoPepo(valor = actualMaestra, etiqueta = "Contraseña actual", alCambiar = { actualMaestra = it }, esContrasena = true)
+                    CampoPepo(valor = actualMaestra, etiqueta = stringResource(R.string.label_pass_actual), alCambiar = { actualMaestra = it }, esContrasena = true)
                     Spacer(Modifier.height(10.dp))
-                    CampoPepo(valor = nuevaMaestra, etiqueta = "Nueva contraseña", alCambiar = { nuevaMaestra = it }, esContrasena = true)
+                    CampoPepo(valor = nuevaMaestra, etiqueta = stringResource(R.string.label_pass_nueva), alCambiar = { nuevaMaestra = it }, esContrasena = true)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Se vuelve a cifrar toda la bóveda y se desactiva la huella.",
@@ -418,25 +420,25 @@ fun PantallaAjustes(vm: VaultViewModel, actividad: FragmentActivity) {
                         actualMaestra = ""
                         nuevaMaestra = ""
                     }
-                ) { Text("Cambiar", color = Ambar) }
+                ) { Text(stringResource(R.string.accion_cambiar), color = Ambar) }
             },
-            dismissButton = { TextButton(onClick = { dialogoCambio = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { dialogoCambio = false }) { Text(stringResource(R.string.accion_cancelar)) } }
         )
     }
 
     if (dialogoBorrar) {
         AlertDialog(
             onDismissRequest = { dialogoBorrar = false },
-            title = { Text("¿Borrar la bóveda entera?") },
+            title = { Text(stringResource(R.string.titulo_borrar_boveda)) },
             text = { Text("Se elimina el archivo cifrado y la clave de la huella. Si no tienes copia, no hay vuelta atrás.") },
             confirmButton = {
                 TextButton(onClick = {
                     dialogoBorrar = false
                     vm.repositorio.borrarTodo()
                     vm.ir(Pantalla.Onboarding)
-                }) { Text("Borrar todo", color = Peligro) }
+                }) { Text(stringResource(R.string.accion_borrar_todo), color = Peligro) }
             },
-            dismissButton = { TextButton(onClick = { dialogoBorrar = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { dialogoBorrar = false }) { Text(stringResource(R.string.accion_cancelar)) } }
         )
     }
 }
@@ -470,7 +472,7 @@ private fun DialogoContrasena(
             Column {
                 Text(descripcion, color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
                 Spacer(Modifier.height(12.dp))
-                CampoPepo(valor = valor, etiqueta = "Contraseña", alCambiar = { valor = it }, esContrasena = true)
+                CampoPepo(valor = valor, etiqueta = stringResource(R.string.label_contrasena), alCambiar = { valor = it }, esContrasena = true)
             }
         },
         confirmButton = {
@@ -478,7 +480,7 @@ private fun DialogoContrasena(
                 Text(textoBoton, color = Ambar)
             }
         },
-        dismissButton = { TextButton(onClick = alCancelar) { Text("Cancelar") } }
+        dismissButton = { TextButton(onClick = alCancelar) { Text(stringResource(R.string.accion_cancelar)) } }
     )
 }
 

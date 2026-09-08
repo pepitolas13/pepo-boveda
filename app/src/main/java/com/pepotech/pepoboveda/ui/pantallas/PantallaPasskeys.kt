@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.foundation.layout.Arrangement
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,7 +47,7 @@ fun PantallaPasskeys(vm: VaultViewModel) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text("Passkeys", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+        Text(stringResource(R.string.titulo_passkeys), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
         Text(
             "Una passkey es un par de claves: la pública se la queda la web, la privada se queda aquí. No hay contraseña que robar en un phishing.",
             style = MaterialTheme.typography.bodyMedium,
@@ -53,7 +56,7 @@ fun PantallaPasskeys(vm: VaultViewModel) {
         Spacer(Modifier.height(18.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Cómo activarlas")
+            EtiquetaSeccion(stringResource(R.string.titulo_como_activar))
             Spacer(Modifier.height(8.dp))
             Text(
                 "Android tiene que saber que Pepo Bóveda es tu gestor. El botón te deja en la pantalla de \"Contraseñas y llaves de acceso\": ahí marca Pepo Bóveda.",
@@ -61,7 +64,7 @@ fun PantallaPasskeys(vm: VaultViewModel) {
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(Modifier.height(12.dp))
-            BotonBorde("Abrir contraseñas y llaves de acceso") {
+            BotonBorde(stringResource(R.string.accion_abrir_gestor)) {
                 if (!AjustesSistema.abrirProveedorCredenciales(contexto)) {
                     vm.avisar("Tu móvil no deja abrirla directa: Ajustes › Contraseñas y cuentas › Contraseñas y llaves de acceso")
                 }
@@ -78,7 +81,7 @@ fun PantallaPasskeys(vm: VaultViewModel) {
 
         if (passkeys.isEmpty()) {
             TarjetaPepo {
-                Text("Todavía no hay passkeys", color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.lista_vacia_passkeys), color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Cuando una web o app te pida crear una passkey y elijas Pepo Bóveda, aparecerá en esta lista.",
@@ -114,7 +117,7 @@ fun PantallaPasskeys(vm: VaultViewModel) {
 
         Spacer(Modifier.height(20.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BotonBorde("Volver", modifier = Modifier.weight(1f)) { vm.volverALista() }
+            BotonBorde(stringResource(R.string.accion_volver), modifier = Modifier.weight(1f)) { vm.volverALista() }
         }
         Spacer(Modifier.height(40.dp))
     }

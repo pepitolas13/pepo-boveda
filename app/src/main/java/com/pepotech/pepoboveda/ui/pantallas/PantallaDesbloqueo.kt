@@ -1,6 +1,10 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.animation.core.Animatable
+
+
 import androidx.compose.animation.core.keyframes
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -101,7 +105,7 @@ fun PantallaDesbloqueo(vm: VaultViewModel, actividad: FragmentActivity) {
     ) {
         PuertaBoveda(abierta = abriendo, tamano = 180)
         Spacer(Modifier.height(24.dp))
-        Text("Bóveda cerrada", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+        Text(stringResource(R.string.titulo_bloqueo), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
         Spacer(Modifier.height(6.dp))
         Text(
             "Todo sigue cifrado en este dispositivo.",
@@ -113,7 +117,7 @@ fun PantallaDesbloqueo(vm: VaultViewModel, actividad: FragmentActivity) {
         Column(modifier = Modifier.offset { IntOffset(sacudida.value.toInt(), 0) }) {
             CampoPepo(
                 valor = contrasena,
-                etiqueta = "Contraseña maestra",
+                etiqueta = stringResource(R.string.label_maestra),
                 alCambiar = { contrasena = it },
                 esContrasena = true,
                 mostrarContrasena = mostrar,
@@ -122,13 +126,13 @@ fun PantallaDesbloqueo(vm: VaultViewModel, actividad: FragmentActivity) {
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            if (mostrar) "Ocultar contraseña" else "Mostrar contraseña",
+            if (mostrar) stringResource(R.string.accion_ocultar_pass) else stringResource(R.string.accion_mostrar_pass),
             color = Ambar,
             style = MaterialTheme.typography.labelLarge,
             modifier = Modifier.clickable { mostrar = !mostrar }
         )
         Spacer(Modifier.height(20.dp))
-        BotonAmbar("Abrir bóveda", activo = contrasena.isNotEmpty()) {
+        BotonAmbar(stringResource(R.string.accion_abrir_boveda), activo = contrasena.isNotEmpty()) {
             vm.desbloquear(contrasena) { correcto ->
                 if (correcto) {
                     abriendo = true

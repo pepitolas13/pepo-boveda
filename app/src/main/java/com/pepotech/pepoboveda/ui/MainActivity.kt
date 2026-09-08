@@ -39,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import com.pepotech.pepoboveda.crypto.BiometricKeyStore
 import com.pepotech.pepoboveda.data.EstadoBoveda
 import com.pepotech.pepoboveda.ui.pantallas.PantallaAcercaDe
@@ -206,7 +208,7 @@ fun RaizPepoBoveda(vm: VaultViewModel, actividad: FragmentActivity) {
                         .padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
                     Text(
-                        text = "Copiado · el portapapeles se borra en ${cuentaAtras}s",
+                        text = stringResource(R.string.portapapeles_borrado_en, cuentaAtras),
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (cuentaAtras <= 5) Ambar else TextoPrincipal
                     )
@@ -229,11 +231,11 @@ private fun DialogoOfrecerBiometria(vm: VaultViewModel, actividad: FragmentActiv
         flujo.activar(modo) { resultado ->
             when (resultado) {
                 is FlujoBiometria.ResultadoActivacion.Activada ->
-                    vm.avisar("Listo: la próxima vez entras con la huella")
+                    vm.avisar(actividad.getString(R.string.aviso_huella_activada))
                 FlujoBiometria.ResultadoActivacion.Cancelada ->
-                    vm.avisar("Huella cancelada. Puedes activarla en Ajustes.")
+                    vm.avisar(actividad.getString(R.string.aviso_huella_cancelada))
                 is FlujoBiometria.ResultadoActivacion.FuerteRota ->
-                    vm.avisar("Android acepta tu huella pero el Keystore la rechaza. En Ajustes > Seguridad puedes activar el modo compatible.")
+                    vm.avisar(actividad.getString(R.string.aviso_huella_fuerte_fallida))
                 is FlujoBiometria.ResultadoActivacion.Error ->
                     vm.avisar(resultado.texto)
             }
@@ -244,29 +246,20 @@ private fun DialogoOfrecerBiometria(vm: VaultViewModel, actividad: FragmentActiv
     AlertDialog(
         onDismissRequest = { vm.cerrarOfertaBiometria() },
         containerColor = SuperficieAlta,
-        title = { Text(if (compatible) "¿Abrir con tu huella o tu PIN?" else "¿Abrir con tu huella?", color = TextoPrincipal) },
+        title = { Text(stringResource(if (compatible) R.string.dialogo_huella_titulo_compatible else R.string.dialogo_huella_titulo_fuerte), color = TextoPrincipal) },
         text = {
             Text(
-                if (compatible) {
-                    "Este móvil no ofrece huella de Clase 3, así que iría en modo compatible: Android comprueba " +
-                        "tu huella o el PIN y la app abre la bóveda. La clave maestra queda envuelta por el Keystore " +
-                        "y no sale del móvil, pero no queda atada al chip como en el modo fuerte. Tu contraseña " +
-                        "maestra sigue siendo la única llave real."
-                } else {
-                    "Tu contraseña maestra seguirá siendo la única llave: la huella solo la desenvuelve, " +
-                        "guardada por el Keystore de Android y atada a este móvil. Si cambias la biometría del " +
-                        "dispositivo, deja de valer y toca escribir la contraseña."
-                },
+                stringResource(if (compatible) R.string.dialogo_huella_texto_compatible else R.string.dialogo_huella_texto_fuerte),
                 color = TextoSecundario,
                 style = MaterialTheme.typography.bodyMedium
             )
         },
         confirmButton = {
-            TextButton(onClick = { activar() }) { Text("Activar", color = Ambar) }
+            TextButton(onClick = { activar() }) { Text(stringResource(R.string.accion_activar), color = Ambar) }
         },
         dismissButton = {
             TextButton(onClick = { vm.cerrarOfertaBiometria() }) {
-                Text("Ahora no", color = TextoSecundario)
+                Text(stringResource(R.string.accion_ahora_no), color = TextoSecundario)
             }
         }
     )
@@ -282,27 +275,24 @@ private fun DialogoOfrecerGestor(vm: VaultViewModel, actividad: FragmentActivity
     AlertDialog(
         onDismissRequest = { vm.cerrarOfertaGestor() },
         containerColor = SuperficieAlta,
-        title = { Text("¿Me pones como gestor?", color = TextoPrincipal) },
+        title = { Text(stringResource(R.string.dialogo_gestor_titulo), color = TextoPrincipal) },
         text = {
             Text(
-                "Android no deja que una app se ponga sola: lo tienes que activar tú. " +
-                    "Te abro la pantalla de \"Contraseñas y llaves de acceso\" y marcas " +
-                    "Pepo Bóveda.\n\nSin esto no aparezco al rellenar contraseñas ni al " +
-                    "crear una llave de acceso. Lo puedes hacer más tarde desde Ajustes.",
+                stringResource(R.string.dialogo_gestor_texto),
                 color = TextoSecundario
             )
         },
         confirmButton = {
             TextButton(onClick = {
                 if (!AjustesSistema.abrirProveedorCredenciales(actividad)) {
-                    vm.avisar("No encuentro esa pantalla en este móvil")
+                    vm.avisar(actividad.getString(R.string.error_pantalla_no_encontrada))
                 }
                 vm.cerrarOfertaGestor()
-            }) { Text("Abrir ajustes", color = Ambar) }
+            }) { Text(stringResource(R.string.accion_abrir_ajustes), color = Ambar) }
         },
         dismissButton = {
             TextButton(onClick = { vm.cerrarOfertaGestor() }) {
-                Text("Ahora no", color = TextoSecundario)
+                Text(stringResource(R.string.accion_ahora_no), color = TextoSecundario)
             }
         }
     )
