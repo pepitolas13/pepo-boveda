@@ -110,7 +110,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
             }
 
             1 -> {
-                val fuerza = remember(contrasena) { MedidorFuerza.medir(contrasena) }
+                val fuerza = remember(contrasena) { MedidorFuerza.medir(contexto, contrasena) }
                 val coinciden = contrasena.isNotEmpty() && contrasena == repetida
                 val valida = contrasena.length >= 10 && coinciden
                 Column(

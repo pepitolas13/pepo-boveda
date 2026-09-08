@@ -72,7 +72,7 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
     var favorito by remember { mutableStateOf(original?.favorito ?: false) }
 
     val totpValido = totp.isBlank() || Base32.esValido(totp)
-    val fuerza = remember(contrasena) { MedidorFuerza.medir(contrasena) }
+    val fuerza = remember(contrasena) { MedidorFuerza.medir(contexto, contrasena) }
     val puedeGuardar = titulo.isNotBlank() && totpValido
 
     Column(

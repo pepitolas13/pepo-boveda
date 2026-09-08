@@ -214,7 +214,7 @@ fun PantallaLista(vm: VaultViewModel, estado: EstadoBoveda) {
                             alFavorito = { haptica.tic(); vm.alternarFavorito(entrada.id) },
                             alCopiarCodigo = { codigo ->
                                 haptica.exito()
-                                vm.copiar("C�digo", codigo, sensible = true)
+                                vm.copiar(contexto.getString(R.string.label_codigo), codigo, sensible = true)
                             }
                         )
                         }
@@ -372,4 +372,3 @@ private fun FilaEntrada(
         }
     }
 }
-

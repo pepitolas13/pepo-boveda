@@ -235,4 +235,13 @@
     <string name="accion_escribir_manual">Escribir el código a mano</string>
     <string name="lista_vacia_2fa">Todavía no hay dobles factores</string>
     <string name="ayuda_toca_copiar">Toca para copiar</string>
+
+    <!-- Fortaleza de contraseña -->
+    <string name="fuerza_vacia">Vacía</string>
+    <string name="fuerza_muy_debil">Muy débil</string>
+    <string name="fuerza_debil">Débil</string>
+    <string name="fuerza_aceptable">Aceptable</string>
+    <string name="fuerza_fuerte">Fuerte</string>
+    <string name="fuerza_excelente">Excelente</string>
+    <string name="fuerza_tiempo_instante">al instante</string>
 </resources>
