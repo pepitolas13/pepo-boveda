@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import android.Manifest
+
 import android.os.Handler
 import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -106,7 +109,7 @@ fun PantallaEscaner(
         if (qrPasskey) return false
         if (!vm.altaTotp(texto, entradaDestino)) return false
         Diagnostico.apuntar("camara", "QR válido leído desde $origen")
-        vm.avisar("Doble factor añadido")
+        vm.avisar(contexto.getString(R.string.aviso_2fa_ok))
         return true
     }
 
@@ -189,7 +192,7 @@ fun PantallaEscaner(
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text("Añadir doble factor", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+        Text(stringResource(R.string.titulo_escaner), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
         Text(
             "Casi todas las webs te dejan elegir: enseñarte un QR o darte el código escrito. Aquí puedes hacer las dos cosas, y la cámara solo se enciende si tú la pides.",
             style = MaterialTheme.typography.bodyMedium,
@@ -212,7 +215,7 @@ fun PantallaEscaner(
                 )
             } else {
                 TarjetaPepo {
-                    Text("Escanear el QR", color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.accion_escanear_qr), color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "Para leerlo, Android tiene que darme la cámara. Se usa solo aquí, para descifrar ese QR, y no hay permiso de red con el que enviar nada.",
@@ -228,12 +231,12 @@ fun PantallaEscaner(
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Spacer(Modifier.height(10.dp))
-                            BotonAmbar("Abrir la ficha de la app") {
-                                if (!AjustesSistema.abrirFichaApp(contexto)) vm.avisar("No encuentro la ficha de la app en este móvil")
+                            BotonAmbar(stringResource(R.string.accion_abrir_ficha)) {
+                                if (!AjustesSistema.abrirFichaApp(contexto)) vm.avisar(contexto.getString(R.string.error_pantalla_no_encontrada))
                             }
                         }
                         EstadoPermiso.DENEGADO -> {
-                            BotonAmbar("Usar la cámara") { pedirPermiso.launch(Manifest.permission.CAMERA) }
+                            BotonAmbar(stringResource(R.string.accion_usar_camara)) { pedirPermiso.launch(Manifest.permission.CAMERA) }
                             Spacer(Modifier.height(8.dp))
                             Text(
                                 "Sin permiso no hay cámara, y no pasa nada: lee el QR desde una captura o escribe el código a mano aquí abajo.",
@@ -241,12 +244,12 @@ fun PantallaEscaner(
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
-                        EstadoPermiso.NO_PEDIDO -> BotonAmbar("Usar la cámara") { pedirPermiso.launch(Manifest.permission.CAMERA) }
+                        EstadoPermiso.NO_PEDIDO -> BotonAmbar(stringResource(R.string.accion_usar_camara)) { pedirPermiso.launch(Manifest.permission.CAMERA) }
                     }
                 }
             }
             Spacer(Modifier.height(10.dp))
-            BotonBorde(if (leyendoImagen) "Buscando el QR en la imagen…" else "Leer el QR de una imagen") {
+            BotonBorde(if (leyendoImagen) stringResource(R.string.aviso_buscando_qr) else stringResource(R.string.accion_leer_imagen)) {
                 if (!leyendoImagen) abrirSelectorDeImagen()
             }
         }
@@ -259,7 +262,7 @@ fun PantallaEscaner(
         if (qrPasskey) {
             Spacer(Modifier.height(18.dp))
             TarjetaPepo {
-                Text("Ese QR es de una llave de acceso, no de un 2FA", color = Peligro, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.error_qr_passkey), color = Peligro, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Ese código lo enseña el navegador de tu ordenador para pasar la llave al móvil, " +
@@ -278,7 +281,7 @@ fun PantallaEscaner(
         Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))) {
             Column(modifier = Modifier.fillMaxWidth().padding(0.dp)) {
                 Text(
-                    if (soloManual) "Pega o escribe la clave" else "O escríbelo a mano",
+                    if (soloManual) stringResource(R.string.titulo_manual_clave) else stringResource(R.string.titulo_manual_escribe),
                     color = TextoPrincipal,
                     style = MaterialTheme.typography.titleMedium
                 )
@@ -294,7 +297,7 @@ fun PantallaEscaner(
                 Spacer(Modifier.height(10.dp))
                 CampoPepo(
                     valor = manual,
-                    etiqueta = "Clave del 2FA o enlace otpauth://",
+                    etiqueta = stringResource(R.string.label_manual_input),
                     alCambiar = { manual = it; fallo = false },
                     monoespaciada = true
                 )
@@ -307,7 +310,7 @@ fun PantallaEscaner(
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                BotonAmbar("Añadir este código", activo = manual.isNotBlank()) {
+                BotonAmbar(stringResource(R.string.accion_anadir_manual), activo = manual.isNotBlank()) {
                     val texto = manual.trim()
                     if (!procesarTexto(texto, "el teclado") && !qrPasskey) fallo = true
                 }
@@ -315,7 +318,7 @@ fun PantallaEscaner(
         }
 
         Spacer(Modifier.height(16.dp))
-        BotonBorde("Cancelar") { if (!vm.retroceder()) vm.volverALista() }
+        BotonBorde(stringResource(R.string.accion_cancelar)) { if (!vm.retroceder()) vm.volverALista() }
         Spacer(Modifier.height(40.dp))
     }
 }
@@ -386,7 +389,7 @@ private fun ZonaCamara(
 
         when (val actual = estado) {
             EstadoCamara.Iniciando -> Aviso(
-                if (falloCameraX != null) "CameraX no ha podido. Abriendo el motor compatible…" else "Abriendo la cámara…",
+                if (falloCameraX != null) stringResource(R.string.aviso_abriendo_compatible) else stringResource(R.string.aviso_abriendo_camara),
                 Modifier.align(Alignment.BottomCenter)
             )
             is EstadoCamara.Funcionando -> if (!actual.conImagen) {
@@ -398,7 +401,7 @@ private fun ZonaCamara(
                     .padding(18.dp),
                 verticalArrangement = Arrangement.Center
             ) {
-                Text("La cámara de este móvil no responde", color = Peligro, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.error_camara_falla), color = Peligro, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(actual.motivo + ".", color = TextoPrincipal, style = MaterialTheme.typography.bodyMedium)
                 falloCameraX?.let {
@@ -412,7 +415,7 @@ private fun ZonaCamara(
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(Modifier.height(12.dp))
-                BotonAmbar("Leer el QR de una imagen") { alElegirImagen() }
+                BotonAmbar(stringResource(R.string.accion_leer_imagen)) { alElegirImagen() }
             }
         }
     }

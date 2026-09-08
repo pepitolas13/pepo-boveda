@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.foundation.background
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,31 +82,31 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
             .padding(20.dp)
     ) {
         Text(
-            if (original == null) "Nueva entrada" else "Editar entrada",
+            if (original == null) stringResource(R.string.titulo_nueva_entrada) else stringResource(R.string.titulo_editar_entrada),
             style = MaterialTheme.typography.headlineMedium,
             color = TextoPrincipal
         )
         Spacer(Modifier.height(16.dp))
 
         if (original?.passkey == null) {
-            EtiquetaSeccion("Tipo")
+            EtiquetaSeccion(stringResource(R.string.label_tipo))
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SelectorTipo("Contraseña", tipo == TipoEntrada.LOGIN) { tipo = TipoEntrada.LOGIN }
-                SelectorTipo("Nota segura", tipo == TipoEntrada.NOTA) { tipo = TipoEntrada.NOTA }
+                SelectorTipo(stringResource(R.string.label_contrasena), tipo == TipoEntrada.LOGIN) { tipo = TipoEntrada.LOGIN }
+                SelectorTipo(stringResource(R.string.tipo_nota), tipo == TipoEntrada.NOTA) { tipo = TipoEntrada.NOTA }
             }
             Spacer(Modifier.height(16.dp))
         }
 
-        CampoPepo(valor = titulo, etiqueta = "Título", alCambiar = { titulo = it })
+        CampoPepo(valor = titulo, etiqueta = stringResource(R.string.label_titulo), alCambiar = { titulo = it })
         Spacer(Modifier.height(12.dp))
 
         if (tipo != TipoEntrada.NOTA) {
-            CampoPepo(valor = usuario, etiqueta = "Usuario o correo", alCambiar = { usuario = it })
+            CampoPepo(valor = usuario, etiqueta = stringResource(R.string.label_usuario_correo), alCambiar = { usuario = it })
             Spacer(Modifier.height(12.dp))
             CampoPepo(
                 valor = contrasena,
-                etiqueta = "Contraseña",
+                etiqueta = stringResource(R.string.label_contrasena),
                 alCambiar = { contrasena = it },
                 esContrasena = true,
                 mostrarContrasena = mostrarContrasena,
@@ -112,13 +115,13 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(
-                    if (mostrarContrasena) "Ocultar" else "Mostrar",
+                    if (mostrarContrasena) stringResource(R.string.accion_ocultar) else stringResource(R.string.accion_mostrar),
                     color = Ambar,
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.clickable { mostrarContrasena = !mostrarContrasena }
                 )
                 Text(
-                    "Generar ahora",
+                    stringResource(R.string.accion_generar_ahora),
                     color = Ambar,
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.clickable {
@@ -127,7 +130,7 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
                     }
                 )
                 Text(
-                    "Abrir generador",
+                    stringResource(R.string.accion_abrir_generador),
                     color = Ambar,
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.clickable { vm.ir(Pantalla.Generador) }
@@ -140,24 +143,24 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
             Spacer(Modifier.height(12.dp))
             CampoPepo(
                 valor = urls,
-                etiqueta = "Sitios o paquetes (separados por comas)",
+                etiqueta = stringResource(R.string.label_urls),
                 alCambiar = { urls = it }
             )
             Spacer(Modifier.height(12.dp))
             CampoPepo(
                 valor = totp,
-                etiqueta = "Secreto TOTP en Base32 (opcional)",
+                etiqueta = stringResource(R.string.label_secreto_totp),
                 alCambiar = { totp = it.uppercase() },
                 monoespaciada = true
             )
             if (!totpValido) {
                 Spacer(Modifier.height(6.dp))
-                Text("Ese secreto no es Base32 válido", color = Peligro, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.error_totp_invalido), color = Peligro, style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(Modifier.height(12.dp))
         }
 
-        CampoPepo(valor = notas, etiqueta = "Notas", alCambiar = { notas = it }, varias = true)
+        CampoPepo(valor = notas, etiqueta = stringResource(R.string.label_notas), alCambiar = { notas = it }, varias = true)
         Spacer(Modifier.height(16.dp))
 
         Row(
@@ -169,8 +172,8 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Favorito", color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
-                Text("Aparece arriba en la lista", color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.label_favorito), color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.ayuda_favorito), color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
             }
             Switch(
                 checked = favorito,
@@ -184,7 +187,7 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
         }
 
         Spacer(Modifier.height(20.dp))
-        BotonAmbar(if (original == null) "Guardar en la bóveda" else "Guardar cambios", activo = puedeGuardar) {
+        BotonAmbar(if (original == null) stringResource(R.string.accion_guardar) else stringResource(R.string.accion_guardar_cambios), activo = puedeGuardar) {
             haptica.exito()
             val entrada = Entrada(
                 id = original?.id ?: vm.nuevoId(),
@@ -203,7 +206,7 @@ fun PantallaEdicion(vm: VaultViewModel, id: String?, contrasenaInicial: String) 
             if (original == null) vm.volverALista() else vm.ir(Pantalla.Detalle(entrada.id))
         }
         Spacer(Modifier.height(12.dp))
-        BotonBorde("Cancelar") {
+        BotonBorde(stringResource(R.string.accion_cancelar)) {
             if (original == null) vm.volverALista() else vm.ir(Pantalla.Detalle(original.id))
         }
         Spacer(Modifier.height(40.dp))

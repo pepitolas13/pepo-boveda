@@ -3,4 +3,236 @@
     <string name="app_name">Pepo Bóveda</string>
     <string name="proveedor_subtitulo">Passkeys y contraseñas guardadas en local, sin internet</string>
     <string name="autofill_sugerencia">Pepo Bóveda</string>
+
+    <string name="aviso_inactividad">Bóveda cerrada por inactividad</string>
+    <string name="portapapeles_borrado_en">Copiado · el portapapeles se borra en %1$ds</string>
+    <string name="aviso_huella_activada">Listo: la próxima vez entras con la huella</string>
+    <string name="aviso_huella_cancelada">Huella cancelada. Puedes activarla en Ajustes.</string>
+    <string name="aviso_huella_fuerte_fallida">Android acepta tu huella pero el Keystore la rechaza. En Ajustes > Seguridad puedes activar el modo compatible.</string>
+    <string name="dialogo_huella_titulo_compatible">¿Abrir con tu huella o tu PIN?</string>
+    <string name="dialogo_huella_titulo_fuerte">¿Abrir con tu huella?</string>
+    <string name="dialogo_huella_texto_compatible">Este móvil no ofrece huella de Clase 3, así que iría en modo compatible: Android comprueba tu huella o el PIN y la app abre la bóveda. La clave maestra queda envuelta por el Keystore y no sale del móvil, pero no queda atada al chip como en el modo fuerte. Tu contraseña maestra sigue siendo la única llave real.</string>
+    <string name="dialogo_huella_texto_fuerte">Tu contraseña maestra seguirá siendo la única llave: la huella solo la desenvuelve, guardada por el Keystore de Android y atada a este móvil. Si cambias la biometría del dispositivo, deja de valer y toca escribir la contraseña.</string>
+    <string name="accion_activar">Activar</string>
+    <string name="accion_ahora_no">Ahora no</string>
+    <string name="dialogo_gestor_titulo">¿Me pones como gestor?</string>
+    <string name="dialogo_gestor_texto">Android no deja que una app se ponga sola: lo tienes que activar tú. Te abro la pantalla de \"Contraseñas y llaves de acceso\" y marcas Pepo Bóveda.\n\nSin esto no aparezco al rellenar contraseñas ni al crear una llave de acceso. Lo puedes hacer más tarde desde Ajustes.</string>
+    <string name="accion_abrir_ajustes">Abrir ajustes</string>
+    <string name="error_pantalla_no_encontrada">No encuentro esa pantalla en este móvil</string>
+    <string name="error_demasiados_intentos">Demasiados intentos. Espera %1$ds.</string>
+    <string name="error_contrasena_incorrecta">Contraseña incorrecta</string>
+    <string name="error_abrir_huella">No se pudo abrir la bóveda con la huella</string>
+    <string name="aviso_guardado">Guardado en la bóveda</string>
+    <string name="aviso_eliminado">Entrada eliminada</string>
+    <string name="aviso_exportado">Bóveda exportada y cifrada</string>
+    <string name="error_exportar">No se pudo exportar: %1$s</string>
+    <string name="aviso_importadas">Importadas %1$d entradas</string>
+    <string name="error_importar">No se pudo importar: contraseña incorrecta o archivo inválido</string>
+    <string name="error_contrasena_actual_incorrecta">La contraseña actual no es correcta</string>
+    <string name="aviso_contrasena_cambiada">Contraseña maestra cambiada. Vuelve a activar la biometría.</string>
+    <string name="error_generico">Algo salió mal</string>
+
+    <!-- Pantalla Lista -->
+    <string name="lista_recuento_sing">1 entrada cifrada aquí dentro</string>
+    <string name="lista_recuento_plur">%1$d entradas cifradas aquí dentro</string>
+    <string name="desc_generador">Generador</string>
+    <string name="label_passkeys">Passkeys</string>
+    <string name="desc_autenticador">Autenticador 2FA</string>
+    <string name="label_ajustes">Ajustes</string>
+    <string name="desc_bloquear">Bloquear</string>
+    <string name="hint_busqueda">Buscar</string>
+    <string name="filtro_todo">Todo</string>
+    <string name="filtro_claves">Claves</string>
+    <string name="filtro_notas">Notas</string>
+    <string name="lista_vacia_busqueda">Nada coincide con esa búsqueda</string>
+    <string name="seccion_2fa">Doble factor</string>
+    <string name="seccion_claves">Contraseñas</string>
+    <string name="seccion_passkeys">Llaves de acceso</string>
+    <string name="seccion_notas">Notas</string>
+    <string name="label_usuario">Usuario</string>
+    <string name="label_contrasena">Contraseña</string>
+    <string name="label_codigo">Código</string>
+    <string name="desc_nueva_entrada">Nueva entrada</string>
+    <string name="accion_copiar_usuario">Copiar usuario</string>
+    <string name="accion_copiar_contrasena">Copiar contraseña</string>
+    <string name="sin_titulo">Sin título</string>
+    <string name="tipo_nota">Nota segura</string>
+    <string name="sin_usuario">Sin usuario</string>
+    <string name="desc_favorito">Favorito</string>
+
+    <!-- Pantalla Ajustes -->
+    <string name="titulo_ajustes">Ajustes</string>
+    <string name="seccion_seguridad">Seguridad</string>
+    <string name="ajuste_huella_titulo">Abrir con huella</string>
+    <string name="aviso_huella_fuerte_ok">Huella activada en modo fuerte</string>
+    <string name="aviso_huella_compatible_ok">Huella activada en modo compatible</string>
+    <string name="aviso_huella_desactivada">Huella desactivada</string>
+    <string name="accion_registrar_huella">Registrar una huella en Android</string>
+    <string name="accion_cambiar_compatible">Cambiar a modo compatible</string>
+    <string name="accion_volver_fuerte">Volver al modo fuerte</string>
+    <string name="accion_activar_compatible">Activar en modo compatible</string>
+    <string name="seccion_bloqueo_auto">Bloqueo automático</string>
+    <string name="seccion_borrado_portapapeles">Borrado del portapapeles</string>
+    <string name="seccion_camara">Cámara del escáner</string>
+    <string name="seccion_backup">Copia de seguridad</string>
+    <string name="accion_exportar">Exportar bóveda cifrada</string>
+    <string name="accion_importar">Importar copia</string>
+    <string name="error_sin_biometria">No hay biometría disponible en este móvil</string>
+    <string name="error_sin_selector_archivos">Este móvil no tiene ningún selector de archivos que pueda abrir</string>
+    <string name="seccion_maestra">Contraseña maestra</string>
+    <string name="accion_cambiar_maestra">Cambiar contraseña maestra</string>
+    <string name="accion_ver_passkeys">Ver mis passkeys</string>
+    <string name="accion_auditar">Audítame</string>
+    <string name="seccion_peligro">Zona peligrosa</string>
+    <string name="accion_borrar_boveda">Borrar la bóveda de este dispositivo</string>
+    <string name="accion_volver">Volver</string>
+    <string name="titulo_compatible">Modo compatible</string>
+    <string name="accion_confirmar_compatible">Activar modo compatible</string>
+    <string name="titulo_pass_copia">Contraseña de la copia</string>
+    <string name="accion_exportar_btn">Exportar</string>
+    <string name="accion_importar_btn">Importar</string>
+    <string name="label_pass_actual">Contraseña actual</string>
+    <string name="label_pass_nueva">Nueva contraseña</string>
+    <string name="accion_cambiar">Cambiar</string>
+    <string name="accion_cancelar">Cancelar</string>
+    <string name="titulo_borrar_boveda">¿Borrar la bóveda entera?</string>
+    <string name="accion_borrar_todo">Borrar todo</string>
+
+    <!-- Pantalla Detalle -->
+    <string name="error_entrada_no_existe">Esta entrada ya no está en la bóveda</string>
+    <string name="ayuda_ocultar">Pulsa el texto para volver a ocultarla</string>
+    <string name="ayuda_revelar">Pulsa el texto para revelarla</string>
+    <string name="label_totp">Código de verificación (TOTP)</string>
+    <string name="ayuda_totp_renovacion">Se renueva cada 30 s</string>
+    <string name="accion_copiar_codigo">Copiar código</string>
+    <string name="label_asociados">Sitios y apps asociados</string>
+    <string name="label_notas">Notas</string>
+    <string name="label_passkey">Passkey</string>
+    <string name="label_servicio">Servicio: %1$s</string>
+    <string name="label_dominio">Dominio: %1$s</string>
+    <string name="label_algoritmo">Algoritmo: %1$s</string>
+    <string name="info_passkey_segura">La clave privada vive dentro del JSON cifrado de la bóveda.</string>
+    <string name="accion_editar">Editar</string>
+    <string name="accion_borrar">Borrar</string>
+    <string name="accion_volver_boveda">Volver a la bóveda</string>
+    <string name="titulo_borrar_entrada">¿Borrar esta entrada?</string>
+    <string name="desc_copiado">Copiado</string>
+    <string name="desc_copiar">Copiar</string>
+
+    <!-- Pantalla Edicion -->
+    <string name="titulo_nueva_entrada">Nueva entrada</string>
+    <string name="titulo_editar_entrada">Editar entrada</string>
+    <string name="label_tipo">Tipo</string>
+    <string name="label_titulo">Título</string>
+    <string name="label_usuario_correo">Usuario o correo</string>
+    <string name="accion_ocultar">Ocultar</string>
+    <string name="accion_mostrar">Mostrar</string>
+    <string name="accion_generar_ahora">Generar ahora</string>
+    <string name="accion_abrir_generador">Abrir generador</string>
+    <string name="label_urls">Sitios o paquetes (separados por comas)</string>
+    <string name="label_secreto_totp">Secreto TOTP en Base32 (opcional)</string>
+    <string name="error_totp_invalido">Ese secreto no es Base32 válido</string>
+    <string name="label_favorito">Favorito</string>
+    <string name="ayuda_favorito">Aparece arriba en la lista</string>
+    <string name="accion_guardar">Guardar en la bóveda</string>
+    <string name="accion_guardar_cambios">Guardar cambios</string>
+
+    <!-- Pantalla Escaner -->
+    <string name="titulo_escaner">Añadir doble factor</string>
+    <string name="aviso_2fa_ok">Doble factor añadido</string>
+    <string name="accion_usar_camara">Usar la cámara</string>
+    <string name="accion_abrir_ficha">Abrir la ficha de la app</string>
+    <string name="accion_leer_imagen">Leer el QR de una imagen</string>
+    <string name="aviso_buscando_qr">Buscando el QR en la imagen…</string>
+    <string name="error_qr_passkey">Ese QR es de una llave de acceso, no de un 2FA</string>
+    <string name="titulo_manual_clave">Pega o escribe la clave</string>
+    <string name="titulo_manual_escribe">O escríbelo a mano</string>
+    <string name="label_manual_input">Clave del 2FA o enlace otpauth://</string>
+    <string name="accion_anadir_manual">Añadir este código</string>
+    <string name="aviso_abriendo_camara">Abriendo la cámara…</string>
+    <string name="error_camara_falla">La cámara de este móvil no responde</string>
+    <string name="aviso_abriendo_compatible">Abriendo el motor compatible…</string>
+
+    <!-- Pantalla Acerca De -->
+    <string name="titulo_auditar">Audítame</string>
+    <string name="permisos_ninguno">Ninguno</string>
+    <string name="accion_copiar_informe">Copiar informe</string>
+    <string name="accion_compartir_informe">Compartir informe</string>
+    <string name="accion_borrar_registro">Borrar registro</string>
+    <string name="accion_ver_ficha">Ver la ficha del sistema</string>
+    <string name="auditoria_subtitulo">Transparencia sobre cómo funciona esta aplicación.</string>
+    <string name="label_permisos_sis">Permisos declarados al sistema</string>
+    <string name="aviso_internet_si">Esta app TIENE permiso de Internet. Esto es peligroso para un gestor de contraseñas local.</string>
+    <string name="aviso_internet_no">Esta app NO tiene permiso de Internet. Tus claves nunca salen del dispositivo.</string>
+    <string name="seccion_cripto">Criptografía</string>
+    <string name="cripto_derivacion">Clave maestra derivada con Argon2id.</string>
+    <string name="cripto_cifrado">Cifrado de datos con AES-256 en modo GCM.</string>
+    <string name="cripto_aad">Cabecera autenticada (AAD) para evitar manipulaciones.</string>
+    <string name="cripto_memoria">Limpieza agresiva de secretos en memoria (zeroización).</string>
+    <string name="cripto_huella_fuerte">Modo fuerte: clave atada al hardware del dispositivo.</string>
+    <string name="cripto_huella_compatible">Modo compatible: cifrado por hardware con chequeo de software.</string>
+    <string name="seccion_formato">Formato del archivo .bvda</string>
+    <string name="formato_magic">Versión %1$d, Salt de %2$d bytes, Nonce de %3$d bytes.</string>
+    <string name="formato_cabecera">Cabecera de %1$d bytes.</string>
+    <string name="formato_ruta">Ruta: %1$s</string>
+    <string name="formato_tamano">Tamaño actual: %1$d bytes.</string>
+    <string name="formato_fsync">Escritura atómica con fsync para evitar corrupción.</string>
+    <string name="seccion_generador_info">Generador de contraseñas</string>
+    <string name="generador_securerandom">Entropía obtenida de java.security.SecureRandom.</string>
+    <string name="generador_diccionario">Diccionario de frases con %1$d palabras únicas.</string>
+    <string name="seccion_passkeys_info">Llaves de acceso (Passkeys)</string>
+    <string name="passkeys_p256">Firma ECDSA sobre curva secp256r1 (NIST P-256).</string>
+    <string name="passkeys_autofill">Integración con el Gestor de Credenciales de Android.</string>
+    <string name="seccion_diagnostico">Informe de diagnóstico</string>
+    <string name="diagnostico_ayuda">Si algo no funciona, puedes copiar este informe para buscar ayuda. No contiene secretos.</string>
+    <string name="diagnostico_consultando">Consultando estado del hardware…</string>
+    <string name="diagnostico_pasos">Pasos recientes</string>
+    <string name="diagnostico_vacio">(nada registrado todavía)</string>
+    <string name="aviso_diagnostico_copiado">Informe copiado al portapapeles</string>
+    <string name="error_no_app_compartir">No hay ninguna aplicación para compartir este informe</string>
+    <string name="pie_acerca_de">Pepo Bóveda · Proyecto de código abierto</string>
+
+    <!-- Pantalla Passkeys -->
+    <string name="titulo_passkeys">Passkeys</string>
+    <string name="titulo_como_activar">Cómo activarlas</string>
+    <string name="accion_abrir_gestor">Abrir contraseñas y llaves de acceso</string>
+    <string name="lista_vacia_passkeys">Todavía no hay passkeys</string>
+
+    <!-- Pantalla Generador -->
+    <string name="titulo_generador">Generador</string>
+    <string name="label_resultado">Resultado</string>
+    <string name="modo_aleatorio">Aleatoria</string>
+    <string name="modo_frase">Frase memorizable</string>
+    <string name="label_longitud">Longitud: %1$d</string>
+    <string name="label_palabras">Palabras: %1$d</string>
+    <string name="label_mayusculas">Mayúsculas</string>
+    <string name="label_minusculas">Minúsculas</string>
+    <string name="label_digitos">Dígitos</string>
+    <string name="label_simbolos">Símbolos</string>
+    <string name="accion_generar_otra">Generar otra</string>
+    <string name="accion_copiar">Copiar</string>
+    <string name="accion_usar_en_nueva">Usar en una entrada nueva</string>
+
+    <!-- Pantalla Desbloqueo -->
+    <string name="titulo_bloqueo">Bóveda cerrada</string>
+    <string name="label_maestra">Contraseña maestra</string>
+    <string name="accion_ocultar_pass">Ocultar contraseña</string>
+    <string name="accion_mostrar_pass">Mostrar contraseña</string>
+    <string name="accion_abrir_boveda">Abrir bóveda</string>
+
+    <!-- Pantalla Onboarding -->
+    <string name="accion_crear_boveda">Crear mi bóveda</string>
+    <string name="titulo_onboarding_maestra">Tu contraseña maestra</string>
+    <string name="label_repite_pass">Repítela</string>
+    <string name="aviso_coinciden">Las dos coinciden</string>
+    <string name="error_no_coinciden">No coinciden</string>
+    <string name="accion_forjar">Forjar la bóveda</string>
+    <string name="titulo_forjando">Forjando tu bóveda</string>
+
+    <!-- Pantalla Autenticador -->
+    <string name="titulo_autenticador">Autenticador</string>
+    <string name="accion_escanear_qr">Escanear QR con la cámara</string>
+    <string name="accion_escribir_manual">Escribir el código a mano</string>
+    <string name="lista_vacia_2fa">Todavía no hay dobles factores</string>
+    <string name="ayuda_toca_copiar">Toca para copiar</string>
 </resources>

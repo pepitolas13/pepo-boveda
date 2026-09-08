@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.foundation.background
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -78,7 +81,7 @@ fun PantallaGenerador(vm: VaultViewModel) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text("Generador", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+        Text(stringResource(R.string.titulo_generador), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
         Text(
             "Aleatoriedad de SecureRandom, aquí en el móvil.",
             style = MaterialTheme.typography.bodyMedium,
@@ -87,7 +90,7 @@ fun PantallaGenerador(vm: VaultViewModel) {
         Spacer(Modifier.height(18.dp))
 
         TarjetaPepo {
-            EtiquetaSeccion("Resultado")
+            EtiquetaSeccion(stringResource(R.string.label_resultado))
             Spacer(Modifier.height(12.dp))
             ContrasenaSlotMachine(objetivo = generada, generacion = generacion, haptica = haptica)
             Spacer(Modifier.height(14.dp))
@@ -103,15 +106,15 @@ fun PantallaGenerador(vm: VaultViewModel) {
 
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModoChip("Aleatoria", !opciones.modoFrase) { opciones = opciones.copy(modoFrase = false) }
-            ModoChip("Frase memorizable", opciones.modoFrase) { opciones = opciones.copy(modoFrase = true) }
+            ModoChip(stringResource(R.string.modo_aleatorio), !opciones.modoFrase) { opciones = opciones.copy(modoFrase = false) }
+            ModoChip(stringResource(R.string.modo_frase), opciones.modoFrase) { opciones = opciones.copy(modoFrase = true) }
         }
 
         Spacer(Modifier.height(16.dp))
 
         if (opciones.modoFrase) {
             TarjetaPepo {
-                EtiquetaSeccion("Palabras: ${opciones.palabras}")
+                EtiquetaSeccion(stringResource(R.string.label_palabras, opciones.palabras))
                 Slider(
                     value = opciones.palabras.toFloat(),
                     onValueChange = {
@@ -133,7 +136,7 @@ fun PantallaGenerador(vm: VaultViewModel) {
             }
         } else {
             TarjetaPepo {
-                EtiquetaSeccion("Longitud: ${opciones.longitud}")
+                EtiquetaSeccion(stringResource(R.string.label_longitud, opciones.longitud))
                 Slider(
                     value = opciones.longitud.toFloat(),
                     onValueChange = {
@@ -146,29 +149,29 @@ fun PantallaGenerador(vm: VaultViewModel) {
                     valueRange = 8f..64f,
                     colors = coloresSlider()
                 )
-                FilaInterruptor("Mayúsculas", opciones.mayusculas) { opciones = opciones.copy(mayusculas = it) }
-                FilaInterruptor("Minúsculas", opciones.minusculas) { opciones = opciones.copy(minusculas = it) }
-                FilaInterruptor("Dígitos", opciones.digitos) { opciones = opciones.copy(digitos = it) }
-                FilaInterruptor("Símbolos", opciones.simbolos) { opciones = opciones.copy(simbolos = it) }
+                FilaInterruptor(stringResource(R.string.label_mayusculas), opciones.mayusculas) { opciones = opciones.copy(mayusculas = it) }
+                FilaInterruptor(stringResource(R.string.label_minusculas), opciones.minusculas) { opciones = opciones.copy(minusculas = it) }
+                FilaInterruptor(stringResource(R.string.label_digitos), opciones.digitos) { opciones = opciones.copy(digitos = it) }
+                FilaInterruptor(stringResource(R.string.label_simbolos), opciones.simbolos) { opciones = opciones.copy(simbolos = it) }
             }
         }
 
         Spacer(Modifier.height(20.dp))
-        BotonAmbar("Generar otra") {
+        BotonAmbar(stringResource(R.string.accion_generar_otra)) {
             haptica.toque()
             regenerar()
         }
         Spacer(Modifier.height(12.dp))
-        BotonBorde("Copiar") {
+        BotonBorde(stringResource(R.string.accion_copiar)) {
             haptica.exito()
-            vm.copiar("Contraseña", generada, sensible = true)
+            vm.copiar(contexto.getString(R.string.label_contrasena), generada, sensible = true)
         }
         Spacer(Modifier.height(12.dp))
-        BotonBorde("Usar en una entrada nueva") {
+        BotonBorde(stringResource(R.string.accion_usar_en_nueva)) {
             vm.ir(Pantalla.Editar(null, generada))
         }
         Spacer(Modifier.height(12.dp))
-        BotonBorde("Volver") { vm.volverALista() }
+        BotonBorde(stringResource(R.string.accion_volver)) { vm.volverALista() }
         Spacer(Modifier.height(40.dp))
     }
 }

@@ -1,6 +1,10 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.animation.AnimatedContent
+
+
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
@@ -77,7 +81,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                 PuertaBoveda(abierta = false, tamano = 190)
                 Spacer(Modifier.height(28.dp))
                 Text(
-                    "Pepo Bóveda",
+                    stringResource(R.string.app_name),
                     style = MaterialTheme.typography.displaySmall,
                     color = TextoPrincipal
                 )
@@ -99,7 +103,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                     Text("Y nada más. Sin red, sin analítica, sin copias en la nube.", color = Menta, style = MaterialTheme.typography.bodyMedium)
                 }
                 Spacer(Modifier.height(28.dp))
-                BotonAmbar("Crear mi bóveda") {
+                BotonAmbar(stringResource(R.string.accion_crear_boveda)) {
                     haptica.toque()
                     paso = 1
                 }
@@ -116,7 +120,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                         .padding(24.dp),
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text("Tu contraseña maestra", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+                    Text(stringResource(R.string.titulo_onboarding_maestra), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
                     Spacer(Modifier.height(8.dp))
                     Text(
                         "Es la única llave. No se guarda en ningún sitio y no hay recuperación: si la pierdes, la bóveda se queda cerrada para siempre.",
@@ -126,7 +130,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                     Spacer(Modifier.height(24.dp))
                     CampoPepo(
                         valor = contrasena,
-                        etiqueta = "Contraseña maestra",
+                        etiqueta = stringResource(R.string.label_maestra),
                         alCambiar = { contrasena = it },
                         esContrasena = true,
                         mostrarContrasena = mostrar,
@@ -135,7 +139,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                     Spacer(Modifier.height(12.dp))
                     CampoPepo(
                         valor = repetida,
-                        etiqueta = "Repítela",
+                        etiqueta = stringResource(R.string.label_repite_pass),
                         alCambiar = { repetida = it },
                         esContrasena = true,
                         mostrarContrasena = mostrar,
@@ -146,12 +150,12 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                     Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text(
-                            if (repetida.isEmpty()) "Mínimo 10 caracteres" else if (coinciden) "Las dos coinciden" else "No coinciden",
+                            if (repetida.isEmpty()) "Mínimo 10 caracteres" else if (coinciden) stringResource(R.string.aviso_coinciden) else stringResource(R.string.error_no_coinciden),
                             color = if (repetida.isNotEmpty() && !coinciden) MaterialTheme.colorScheme.error else TextoSecundario,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            if (mostrar) "Ocultar" else "Mostrar",
+                            if (mostrar) stringResource(R.string.accion_ocultar) else stringResource(R.string.accion_mostrar),
                             color = Ambar,
                             style = MaterialTheme.typography.labelLarge,
                             modifier = Modifier.padding(start = 12.dp)
@@ -159,12 +163,12 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                         )
                     }
                     Spacer(Modifier.height(24.dp))
-                    BotonAmbar("Forjar la bóveda", activo = valida) {
+                    BotonAmbar(stringResource(R.string.accion_forjar), activo = valida) {
                         haptica.toque()
                         paso = 2
                     }
                     Spacer(Modifier.height(12.dp))
-                    BotonBorde("Volver") { paso = 0 }
+                    BotonBorde(stringResource(R.string.accion_volver)) { paso = 0 }
                 }
             }
 
@@ -181,7 +185,7 @@ fun PantallaOnboarding(vm: VaultViewModel, actividad: FragmentActivity) {
                 ) {
                     PuertaBoveda(abierta = false, tamano = 210)
                     Spacer(Modifier.height(32.dp))
-                    Text("Forjando tu bóveda", style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
+                    Text(stringResource(R.string.titulo_forjando), style = MaterialTheme.typography.headlineSmall, color = TextoPrincipal)
                     Spacer(Modifier.height(10.dp))
                     Text(
                         "Argon2id está estirando tu contraseña con 64 MiB de memoria y 3 pasadas. Esto es lo que hace que un ataque por fuerza bruta salga carísimo.",

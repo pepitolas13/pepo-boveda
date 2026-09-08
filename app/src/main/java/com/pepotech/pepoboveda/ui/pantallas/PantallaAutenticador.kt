@@ -1,6 +1,9 @@
 package com.pepotech.pepoboveda.ui.pantallas
 
+import androidx.compose.ui.res.stringResource
+import com.pepotech.pepoboveda.R
 import androidx.compose.foundation.layout.Arrangement
+
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -53,7 +56,7 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
             .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
-        Text("Autenticador", style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
+        Text(stringResource(R.string.titulo_autenticador), style = MaterialTheme.typography.headlineMedium, color = TextoPrincipal)
         Text(
             "Códigos de doble factor calculados aquí, en tu móvil, con el reloj y una clave que nunca sale de la bóveda. Sin cuenta, sin nube, sin permiso de red.",
             style = MaterialTheme.typography.bodyMedium,
@@ -61,14 +64,14 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
         )
         Spacer(Modifier.height(18.dp))
 
-        BotonAmbar("Escanear QR con la cámara") { vm.ir(Pantalla.Escaner()) }
+        BotonAmbar(stringResource(R.string.accion_escanear_qr)) { vm.ir(Pantalla.Escaner()) }
         Spacer(Modifier.height(10.dp))
-        BotonBorde("Escribir el código a mano") { vm.ir(Pantalla.Escaner(soloManual = true)) }
+        BotonBorde(stringResource(R.string.accion_escribir_manual)) { vm.ir(Pantalla.Escaner(soloManual = true)) }
         Spacer(Modifier.height(18.dp))
 
         if (conTotp.isEmpty()) {
             TarjetaPepo {
-                Text("Todavía no hay dobles factores", color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.lista_vacia_2fa), color = TextoPrincipal, style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     "Cuando una web te ofrezca activar el 2FA, escanea su QR o pega su clave. Aquí verás el código de 6 dígitos.",
@@ -117,7 +120,7 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
                             if (entrada.usuario.isNotBlank()) {
                                 Text(entrada.usuario, color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
                             }
-                            Text("Toca para copiar", color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
+                            Text(stringResource(R.string.ayuda_toca_copiar), color = TextoSecundario, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
                 }
@@ -127,7 +130,7 @@ fun PantallaAutenticador(vm: VaultViewModel, estado: EstadoBoveda) {
 
         Spacer(Modifier.height(20.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BotonBorde("Volver", modifier = Modifier.weight(1f)) { vm.volverALista() }
+            BotonBorde(stringResource(R.string.accion_volver), modifier = Modifier.weight(1f)) { vm.volverALista() }
         }
         Spacer(Modifier.height(40.dp))
     }

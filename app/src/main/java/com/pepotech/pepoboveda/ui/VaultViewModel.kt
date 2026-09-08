@@ -2,7 +2,9 @@ package com.pepotech.pepoboveda.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
+import com.pepotech.pepoboveda.R
 import com.pepotech.pepoboveda.crypto.OtpAuth
 import com.pepotech.pepoboveda.crypto.Zeroizar
 import com.pepotech.pepoboveda.data.AjustesApp
@@ -20,35 +22,44 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
+@Serializable
 sealed interface Pantalla {
-    object Onboarding : Pantalla
-    object Desbloqueo : Pantalla
-    object Lista : Pantalla
-    data class Detalle(val id: String) : Pantalla
-    data class Editar(val id: String?, val contrasenaInicial: String = "") : Pantalla
-    object Generador : Pantalla
-    object Passkeys : Pantalla
-    object Autenticador : Pantalla
+    @Serializable data object Onboarding : Pantalla
+    @Serializable data object Desbloqueo : Pantalla
+    @Serializable data object Lista : Pantalla
+    @Serializable data class Detalle(val id: String) : Pantalla
+    @Serializable data class Editar(val id: String?, val contrasenaInicial: String = "") : Pantalla
+    @Serializable data object Generador : Pantalla
+    @Serializable data object Passkeys : Pantalla
+    @Serializable data object Autenticador : Pantalla
     /** Si [entradaDestino] es null, el QR crea una entrada nueva de 2FA. */
+    @Serializable
     data class Escaner(
         val entradaDestino: String? = null,
         /** true = entrar directo a escribir la clave a mano, sin cámara. */
         val soloManual: Boolean = false
     ) : Pantalla
-    object Ajustes : Pantalla
-    object AcercaDe : Pantalla
+    @Serializable data object Ajustes : Pantalla
+    @Serializable data object AcercaDe : Pantalla
 }
 
-class VaultViewModel(app: Application) : AndroidViewModel(app) {
+class VaultViewModel(app: Application, private val savedStateHandle: SavedStateHandle) : AndroidViewModel(app) {
 
     val repositorio = VaultRepository.obtener(app)
 
     val estado: StateFlow<EstadoBoveda> = repositorio.estado
     val ajustes: StateFlow<AjustesApp> = repositorio.ajustes.ajustes
 
+    private val json = Json { ignoreUnknownKeys = true }
+
     private val _pantalla = MutableStateFlow<Pantalla>(
-        if (repositorio.existeBoveda) Pantalla.Desbloqueo else Pantalla.Onboarding
+        savedStateHandle.get<String>("pantalla")?.let {
+            try { json.decodeFromString<Pantalla>(it) } catch (e: Exception) { null }
+        } ?: if (repositorio.existeBoveda) Pantalla.Desbloqueo else Pantalla.Onboarding
     )
     val pantalla: StateFlow<Pantalla> = _pantalla
 
@@ -78,7 +89,14 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     // ------------------------------------------------------------- navegación
 
     /** Pila de navegación: sin esto, el botón atrás cerraba la app. */
-    private val pila = ArrayDeque<Pantalla>()
+    private val pila: ArrayDeque<Pantalla> = savedStateHandle.get<String>("pila")?.let {
+        try { ArrayDeque(json.decodeFromString<List<Pantalla>>(it)) } catch (e: Exception) { ArrayDeque() }
+    } ?: ArrayDeque()
+
+    private fun persistirNavegacion() {
+        savedStateHandle["pantalla"] = json.encodeToString(_pantalla.value)
+        savedStateHandle["pila"] = json.encodeToString(pila.toList())
+    }
 
     fun ir(pantalla: Pantalla) {
         if (pantalla != _pantalla.value) {
@@ -86,12 +104,14 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             if (pila.size > 20) pila.removeFirst()
         }
         _pantalla.value = pantalla
+        persistirNavegacion()
     }
 
     /** Cambia de pantalla vaciando la pila: se usa al abrir, cerrar y bloquear. */
     private fun irRaiz(pantalla: Pantalla) {
         pila.clear()
         _pantalla.value = pantalla
+        persistirNavegacion()
     }
 
     fun volverALista() {
@@ -105,6 +125,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     fun retroceder(): Boolean {
         val anterior = pila.removeLastOrNull() ?: return false
         _pantalla.value = anterior
+        persistirNavegacion()
         return true
     }
 
@@ -163,7 +184,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
                     val quieto = System.currentTimeMillis() - _ultimaInteraccion.value
                     if (quieto >= limite * 1000L) {
                         bloquear()
-                        _aviso.value = "Bóveda cerrada por inactividad"
+                        _aviso.value = contextoApp.getString(R.string.aviso_inactividad)
                     }
                 }
             }
@@ -203,7 +224,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     fun desbloquear(password: String, alTerminar: (Boolean) -> Unit = {}) {
         val espera = esperaPorIntentos()
         if (espera > 0) {
-            _error.value = "Demasiados intentos. Espera ${espera}s."
+            _error.value = contextoApp.getString(R.string.error_demasiados_intentos, espera)
             alTerminar(false)
             return
         }
@@ -217,7 +238,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
                 alTerminar(true)
             } catch (e: Exception) {
                 apuntarFallo()
-                _error.value = "Contraseña incorrecta"
+                _error.value = contextoApp.getString(R.string.error_contrasena_incorrecta)
                 alTerminar(false)
             } finally {
                 Zeroizar.borrar(chars)
@@ -235,7 +256,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
                 alTerminar(true)
             } catch (e: Exception) {
                 Diagnostico.apuntar("huella", "La clave desenvuelta no abrió la bóveda: ${e.javaClass.simpleName}")
-                _error.value = "No se pudo abrir la bóveda con la huella"
+                _error.value = contextoApp.getString(R.string.error_abrir_huella)
                 alTerminar(false)
             } finally {
                 Zeroizar.borrar(clave)
@@ -283,7 +304,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
     fun guardar(entrada: Entrada) {
         ejecutar {
             withContext(Dispatchers.IO) { repositorio.guardarEntrada(entrada) }
-            _aviso.value = "Guardado en la bóveda"
+            _aviso.value = contextoApp.getString(R.string.aviso_guardado)
         }
     }
 
@@ -291,7 +312,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         ejecutar {
             withContext(Dispatchers.IO) { repositorio.eliminarEntrada(id) }
             irRaiz(Pantalla.Lista)
-            _aviso.value = "Entrada eliminada"
+            _aviso.value = contextoApp.getString(R.string.aviso_eliminado)
         }
     }
 
@@ -399,9 +420,9 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val datos = withContext(Dispatchers.Default) { repositorio.exportar(chars) }
                 withContext(Dispatchers.IO) { escritor(datos) }
-                _aviso.value = "Bóveda exportada y cifrada"
+                _aviso.value = contextoApp.getString(R.string.aviso_exportado)
             } catch (e: Exception) {
-                _error.value = "No se pudo exportar: ${e.message ?: "error desconocido"}"
+                _error.value = contextoApp.getString(R.string.error_exportar, e.message ?: contextoApp.getString(R.string.error_generico))
             } finally {
                 Zeroizar.borrar(chars)
             }
@@ -414,9 +435,9 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val datos = withContext(Dispatchers.IO) { lector() }
                 val nuevas = withContext(Dispatchers.Default) { repositorio.importar(datos, chars) }
-                _aviso.value = "Importadas $nuevas entradas"
+                _aviso.value = contextoApp.getString(R.string.aviso_importadas, nuevas)
             } catch (e: Exception) {
-                _error.value = "No se pudo importar: contraseña incorrecta o archivo inválido"
+                _error.value = contextoApp.getString(R.string.error_importar)
             } finally {
                 Zeroizar.borrar(chars)
             }
@@ -430,11 +451,11 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val correcta = withContext(Dispatchers.Default) { repositorio.verificarContrasena(viejaChars) }
                 if (!correcta) {
-                    _error.value = "La contraseña actual no es correcta"
+                    _error.value = contextoApp.getString(R.string.error_contrasena_actual_incorrecta)
                     return@ejecutar
                 }
                 withContext(Dispatchers.Default) { repositorio.cambiarContrasenaMaestra(nuevaChars) }
-                _aviso.value = "Contraseña maestra cambiada. Vuelve a activar la biometría."
+                _aviso.value = contextoApp.getString(R.string.aviso_contrasena_cambiada)
             } finally {
                 Zeroizar.borrar(viejaChars)
                 Zeroizar.borrar(nuevaChars)
@@ -450,7 +471,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 // Solo la clase: el mensaje de estas excepciones puede llevar rutas o contenido de la bóveda.
                 Diagnostico.apuntar("app", "Operación fallida: ${e.javaClass.simpleName}")
-                _error.value = e.message ?: "Algo salió mal"
+                _error.value = e.message ?: contextoApp.getString(R.string.error_generico)
             } finally {
                 _trabajando.value = false
             }
